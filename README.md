@@ -10,6 +10,10 @@ Gemini CLI를 브라우저 및 모바일 환경에서 편리하게 사용할 수
 - **모바일 최적화**: 스마트폰에서도 터미널 조작과 파일 탐색이 가능하도록 전용 모바일 레이아웃과 가상 키보드를 지원합니다.
 - **AI 에이전트 프랙티스**: `.agent/` 디렉토리를 통해 AI 에이전트와 협업할 때 유용한 규칙(Rules)과 모범 사례를 공유합니다.
 
+<img width="819" height="391" alt="image" src="https://github.com/user-attachments/assets/91d1d38d-d974-4d7d-9000-19655a937885" />
+
+
+
 ## 🚀 시작하기
 
 ### 1. 선행 조건 (Prerequisites)
