@@ -1,0 +1,362 @@
+body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #1e1e1e;
+    color: #cccccc;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#viewer-header {
+    background-color: #2d2d2d;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #444;
+}
+
+#file-path {
+    font-family: monospace;
+    font-size: 0.9em;
+    color: #9cdcfe;
+}
+
+button {
+    background: #444;
+    color: white;
+    border: none;
+    padding: 5px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #555;
+}
+
+#main-container {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Full View (Text) */
+.full-view {
+    width: 100%;
+    padding: 20px;
+    overflow: auto;
+    position: relative;
+}
+
+pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+code {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+}
+
+/* Split View (Markdown) */
+.split-view {
+    width: 100%;
+    display: flex;
+    height: 100%;
+}
+.split-view.swapped {
+    flex-direction: row-reverse;
+}
+
+.pane {
+    flex: 1;
+    overflow: auto;
+    padding: 20px;
+    position: relative;
+    border-right: 1px solid #444;
+}
+
+.pane:last-child {
+    border-right: none;
+}
+
+.pane-header {
+    position: sticky;
+    top: -20px;
+    left: -20px;
+    right: -20px;
+    background: #252526;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 10px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #444;
+    z-index: 10;
+}
+
+.pane-title {
+    color: #888;
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+.copy-btn {
+    background: #333;
+    color: #ccc;
+    border: 1px solid #555;
+    padding: 2px 8px;
+    font-size: 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.copy-btn:hover {
+    background: #444;
+    color: #fff;
+    border-color: #888;
+}
+
+/* Markdown Rendering Style */
+.markdown-body {
+    color: #e1e4e8;
+    line-height: 1.6;
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+    border-bottom: 1px solid #444;
+    padding-bottom: 0.3em;
+    color: #ffffff;
+}
+
+.markdown-body a {
+    color: #58a6ff;
+}
+
+.markdown-body blockquote {
+    border-left: 4px solid #444;
+    padding-left: 15px;
+    color: #8b949e;
+}
+
+.markdown-body table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+.markdown-body table th, .markdown-body table td {
+    border: 1px solid #444;
+    padding: 6px 13px;
+}
+
+.markdown-body table tr:nth-child(2n) {
+    background-color: #2d2d2d;
+}
+
+/* File Browser Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background-color: #252526;
+    border: 1px solid #454545;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 1000px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+    padding: 15px;
+    border-bottom: 1px solid #454545;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #2d2d2d;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+
+#modal-current-dir {
+    font-family: monospace;
+    font-size: 0.9em;
+    color: #ce9178;
+    word-break: break-all;
+    flex-grow: 1;
+    margin-right: 15px;
+}
+
+.modal-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#modal-close-btn {
+    background: transparent;
+    color: #cccccc;
+    font-size: 1.2em;
+    padding: 0 5px;
+}
+
+#modal-close-btn:hover {
+    color: white;
+    background: #c53030;
+}
+
+.modal-list-header {
+    display: flex;
+    padding: 10px 20px;
+    background-color: #333;
+    border-bottom: 1px solid #454545;
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #ccc;
+    user-select: none;
+}
+
+.modal-list-header > div {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.modal-list-header > div:hover {
+    color: #fff;
+}
+
+.modal-file-item {
+    display: flex;
+    padding: 8px 20px;
+    border-bottom: 1px solid #333;
+    cursor: pointer;
+    align-items: center;
+}
+
+.modal-file-item:hover {
+    background-color: #37373d;
+}
+
+.col-name {
+    flex-grow: 1;
+}
+
+.col-date {
+    width: 140px;
+    text-align: right;
+    justify-content: flex-end;
+}
+
+#modal-file-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+#modal-file-list li {
+    padding: 8px 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid #333;
+}
+
+#modal-file-list li:hover {
+    background-color: #37373d;
+}
+
+#modal-file-list li.directory {
+    color: #dcdcaa;
+}
+
+#modal-file-list li.file {
+    color: #9cdcfe;
+}
+
+.file-name {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-mtime {
+    width: 130px;
+    text-align: right;
+    font-size: 0.8em;
+    color: #888;
+}
+
+.file-open-new-tab {
+    margin-left: 10px;
+    padding: 2px 6px;
+    background-color: transparent;
+    border: 1px solid #555;
+    color: #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8em;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.file-open-new-tab:hover {
+    background-color: #444;
+    color: #fff;
+    border-color: #888;
+}
+
+/* Header Buttons Adjust */
+.header-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+/* [새로 열기] 버튼 스타일 */
+.btn-new-tab {
+    background: #333;
+    border: 1px solid #555;
+    color: #569cd6;
+    cursor: pointer;
+    font-size: 10px;
+    padding: 1px 4px;
+    margin-left: 10px;
+    border-radius: 3px;
+    transition: all 0.2s;
+    vertical-align: middle;
+    display: inline-block;
+}
+
+.btn-new-tab:hover {
+    background: #444;
+    color: #4fc1ff;
+    border-color: #569cd6;
+}

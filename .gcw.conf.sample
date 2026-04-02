@@ -1,0 +1,15 @@
+# Gemini CLI Wrapper (.gcw.conf) Sample
+# 이 파일을 .gcw.conf로 복사하여 사용하세요.
+
+# 1. API 키 설정 (필수)
+# 터미널 세션에서 사용할 Gemini API 키를 설정합니다.
+# 주의: 이 파일은 .gitignore에 포함하여 공용 저장소에 올라가지 않도록 하세요.
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# 2. 서버 설정 (선택사항)
+# 기본값은 5001입니다.
+# GCW_PORT=5001
+
+# 3. Tmux 설정 (선택사항)
+# 기본적으로 시스템의 tmux를 사용합니다.
+# GCW_TMUX_PATH=/usr/bin/tmux

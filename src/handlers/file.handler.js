@@ -1,0 +1,265 @@
+const fs = require('fs');
+const path = require('path');
+
+// --- 유틸리티 함수 ---
+function getNextImageFilename(dirPath, ext) {
+    if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+    }
+    const files = fs.readdirSync(dirPath);
+    let maxIdx = -1;
+    files.forEach(file => {
+        const match = file.match(/^(\d{5})\./);
+        if (match) {
+            const idx = parseInt(match[1], 10);
+            if (idx > maxIdx) maxIdx = idx;
+        }
+    });
+    return String(maxIdx + 1).padStart(5, '0') + '.' + ext;
+}
+
+function getScreenshotsDir(dir) {
+    const targetDir = dir ? path.resolve(process.cwd(), dir) : process.cwd();
+    return path.join(targetDir, 'screenshots');
+}
+// -------------------
+
+/**
+ * 파일 시스템 조작을 위한 HTTP API 라우트 등록
+ * @param {object} app - Express 앱 인스턴스
+ */
+function registerFileApiRoutes(app) {
+    // API: 현재 작업 디렉토리의 파일 트리 조회 (간단한 버전)
+    app.get('/api/files', (req, res) => {
+        const dir = req.query.dir ? path.resolve(process.cwd(), req.query.dir) : process.cwd();
+
+        try {
+            if (!fs.existsSync(dir)) {
+                return res.json([]);
+            }
+            const items = fs.readdirSync(dir, { withFileTypes: true });
+            const result = items.map(item => ({
+                name: item.name,
+                isDirectory: item.isDirectory(),
+                path: path.join(dir, item.name),
+                mtime: fs.statSync(path.join(dir, item.name)).mtimeMs
+            }));
+            res.json(result);
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // API: 파일 내용 읽기
+    app.get('/api/files/content', (req, res) => {
+        try {
+            const filePath = req.query.path;
+            if (!filePath) {
+                return res.status(400).json({ error: 'File path is required' });
+            }
+
+            const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
+
+            if (!fs.existsSync(absolutePath)) {
+                return res.status(404).json({ error: 'File not found' });
+            }
+
+            const content = fs.readFileSync(absolutePath, 'utf8');
+            res.send(content);
+        } catch (error) {
+            console.error('Error reading file:', error);
+            res.status(500).json({ error: 'Failed to read file' });
+        }
+    });
+
+    // API: 현재 디렉토리의 최근 저장된 이미지 5개 목록 조회
+    app.get('/api/latest-images', (req, res) => {
+        try {
+            const screenshotsDir = getScreenshotsDir(req.query.dir);
+
+            if (!fs.existsSync(screenshotsDir)) return res.json([]);
+
+            const files = fs.readdirSync(screenshotsDir);
+            const imageFiles = files
+                .filter(file => file.match(/^(\d{5})\.(png|jpe?g|gif)$/))
+                .sort((a, b) => b.localeCompare(a)) // 역순 정렬 (최신순)
+                .slice(0, 5) // 최근 5개
+                .map(file => {
+                    const filepath = path.join(screenshotsDir, file).replace(/\\/g, '/');
+                    return {
+                        filename: file,
+                        filepath: filepath,
+                        url: `/api/image?path=${encodeURIComponent(filepath)}`,
+                        dir: req.query.dir
+                    };
+                });
+
+            res.json(imageFiles);
+        } catch (err) {
+            console.error('Failed to get latest images', err);
+            res.status(500).json({ error: 'Failed' });
+        }
+    });
+
+    // API: 저장된 이미지 로드 (CORS 문제 우회용)
+    app.get('/api/image', (req, res) => {
+        const filePath = req.query.path;
+        if (!filePath) return res.status(400).send('Path is required');
+
+        const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
+
+        if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
+            res.sendFile(absolutePath);
+        } else {
+            res.status(404).send('Image not found');
+        }
+    });
+
+    // API: 파일 다운로드
+    app.get('/api/download', (req, res) => {
+        const filePath = req.query.path;
+        if (!filePath) return res.status(400).send('Path is required');
+        
+        const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
+        
+        if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
+            res.download(absolutePath);
+        } else {
+            res.status(404).send('File not found');
+        }
+    });
+}
+
+/**
+ * 파일 시스템 조작 소켓 이벤트 핸들러
+ * @param {object} socket - 연결된 클라이언트 소켓
+ * @param {object} io - Socket.IO 서버 인스턴스
+ */
+function registerFileHandlers(socket, io) {
+    let fileWatcher = null;
+
+    // 뷰어를 위한 단일 파일 실시간 감지
+    socket.on('watch_file', (filePath) => {
+        if (fileWatcher) fileWatcher.close();
+        
+        try {
+            const absPath = path.resolve(process.cwd(), filePath);
+            if (!fs.existsSync(absPath)) return;
+            
+            // 파일 변경 시 (저장 등) 뷰어에 변경 알림 전송
+            fileWatcher = fs.watch(absPath, (eventType) => {
+                if (eventType === 'change') {
+                    socket.emit('file_changed', { path: filePath });
+                }
+            });
+        } catch (err) {
+            console.error('[ERROR] Failed to watch file:', err);
+        }
+    });
+
+    socket.on('disconnect', () => {
+        if (fileWatcher) fileWatcher.close();
+    });
+
+    // upload_image 핸들러
+    socket.on('upload_image', (payload) => {
+        console.log('[DEBUG] Received upload_image event. Payload ext:', payload.ext, 'dir:', payload.dir);
+        try {
+            const screenshotsDir = getScreenshotsDir(payload.dir);
+            const ext = payload.ext || 'png';
+            const filename = getNextImageFilename(screenshotsDir, ext);
+            const filepath = path.join(screenshotsDir, filename);
+            
+            // payload.data는 ArrayBuffer
+            fs.writeFileSync(filepath, Buffer.from(payload.data));
+            
+            console.log(`[FILE] Image saved: ${filepath}`);
+            
+            // 절대 경로
+            const absoluteFilepath = filepath.replace(/\\/g, '/');
+            const imageUrl = `/api/image?path=${encodeURIComponent(absoluteFilepath)}`;
+
+            // 저장된 경로를 클라이언트에게 전달
+            socket.emit('image_uploaded', { 
+                url: imageUrl, 
+                filepath: absoluteFilepath,
+                dir: payload.dir
+            });
+        } catch (err) {
+            console.error('Error saving image:', err);
+            socket.emit('error', 'Failed to save image.');
+        }
+    });
+
+    // upload_file 핸들러 (일반 파일)
+    socket.on('upload_file', (payload) => {
+        try {
+            const { filename, data, dir } = payload;
+            // dir이 없으면 현재 작업 디렉토리 사용. 절대 경로인 경우 그대로 사용됨.
+            const targetDir = dir ? path.resolve(process.cwd(), dir) : process.cwd();
+            const absolutePath = path.join(targetDir, filename);
+            
+            console.log(`[FILE] Uploading to: ${absolutePath}`);
+
+            // payload.data는 ArrayBuffer/Buffer로 수신됨
+            const dataBuffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
+            fs.writeFileSync(absolutePath, dataBuffer);
+            console.log(`[FILE] File saved: ${absolutePath}`);
+            
+            // 모든 클라이언트에 업로드 완료 알림 (탐색기 갱신용)
+            io.emit('file_uploaded', { dir: dir || '' });
+        } catch (error) {
+            console.error("File upload error:", error);
+            socket.emit('error', 'Failed to save file.');
+        }
+    });
+
+    // rename_file 핸들러
+    socket.on('rename_file', (payload) => {
+        try {
+            const oldPath = path.resolve(process.cwd(), payload.oldPath);
+            const newPath = path.resolve(process.cwd(), payload.newPath);
+            fs.renameSync(oldPath, newPath);
+            console.log(`[FILE] Renamed: ${oldPath} -> ${newPath}`);
+            socket.emit('file_renamed', { oldPath: payload.oldPath, newPath: payload.newPath, success: true });
+        } catch (error) {
+            console.error('Error renaming file:', error);
+            socket.emit('error', 'Failed to rename file.');
+        }
+    });
+
+    // delete_file 핸들러
+    socket.on('delete_file', (payload) => {
+        try {
+            const absolutePath = path.resolve(process.cwd(), payload.path);
+            if (fs.existsSync(absolutePath)) {
+                const stat = fs.statSync(absolutePath);
+                if (stat.isDirectory()) {
+                    fs.rmdirSync(absolutePath, { recursive: true });
+                } else {
+                    fs.unlinkSync(absolutePath);
+                }
+                console.log(`[FILE] Deleted: ${absolutePath}`);
+                socket.emit('file_deleted', { path: payload.path, success: true });
+            }
+        } catch (error) {
+            console.error('Error deleting file/directory:', error);
+            socket.emit('error', 'Failed to delete file.');
+        }
+    });
+
+    // 폴더 생성 (추가됨)
+    socket.on('create_directory', (dirPath) => {
+        try {
+            const absolutePath = path.resolve(process.cwd(), dirPath);
+            fs.mkdirSync(absolutePath, { recursive: true });
+            socket.emit('directory_created', { path: dirPath, success: true });
+            io.emit('directory_changed', { type: 'create_dir', path: dirPath });
+        } catch (error) {
+            console.error('Error creating directory:', error);
+            socket.emit('error', 'Failed to create directory.');
+        }
+    });
+}
+
+module.exports = { registerFileApiRoutes, registerFileHandlers };

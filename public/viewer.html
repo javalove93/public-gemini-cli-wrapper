@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Viewer - Gemini CLI WebUI</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+    <div id="viewer-header">
+        <span id="file-path" style="flex:1;">Loading...</span>
+        <div style="flex:1; text-align:center;">
+            <button id="swap-panes-btn" title="Swap Left/Right Panes" class="hidden" style="background:#555; padding:4px 12px; font-weight:bold;">⇄ Swap</button>
+        </div>
+        <div class="header-buttons" style="flex:1; text-align:right;">
+            <button id="open-btn">Open</button>
+            <button onclick="window.close()">Close</button>
+        </div>
+    </div>
+    
+    <!-- File Browser Modal -->
+    <div id="file-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span id="modal-current-dir">Loading...</span>
+                <div class="modal-controls">
+                    <button id="modal-close-btn">&times;</button>
+                </div>
+            </div>
+            <div class="modal-list-header">
+                <div class="col-name" id="sort-name">Name <span class="sort-icon"></span></div>
+                <div class="col-date" id="sort-date">Date <span class="sort-icon">▼</span></div>
+            </div>
+            <ul id="modal-file-list">
+                <!-- File list items will be injected here -->
+            </ul>
+        </div>
+    </div>
+
+    <div id="main-container">
+        <!-- 일반 텍스트용 컨테이너 -->
+        <div id="text-container" class="full-view hidden">
+            <div class="pane-header">
+                <div class="pane-title">Raw Text</div>
+                <button class="copy-btn" id="copy-text-btn">Copy</button>
+            </div>
+            <pre><code id="text-content"></code></pre>
+        </div>
+
+        <!-- 마크다운 분할 뷰용 컨테이너 -->
+        <div id="markdown-container" class="split-view hidden">
+            <div class="pane left">
+                <div class="pane-header">
+                    <div class="pane-title">Raw Markdown</div>
+                    <button class="copy-btn" id="copy-raw-btn">Copy</button>
+                </div>
+                <pre><code id="md-raw"></code></pre>
+            </div>
+            <div class="pane right">
+                <div class="pane-header">
+                    <div class="pane-title">Rendered View</div>
+                    <button class="copy-btn" id="copy-rendered-btn">Copy</button>
+                </div>
+                <div id="md-rendered" class="markdown-body"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script type="module" src="viewer.js"></script>
+</body>
+</html>

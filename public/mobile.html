@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <base href="./">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gemini CLI Mobile</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body class="mobile-layout">
+    <!-- 메인 터미널 영역 -->
+    <div id="mobile-terminal-container">
+        <div id="mobile-session-badge" class="session-badge">No Session</div>
+        <div id="terminal"></div>
+    </div>
+
+    <!-- 하단 네비게이션 바 -->
+    <div id="bottom-nav">
+        <button id="btn-nav-sessions" class="nav-btn">
+            <span class="icon">💻</span>
+            <span class="label">Sessions</span>
+        </button>
+        <button id="btn-nav-files" class="nav-btn">
+            <span class="icon">📁</span>
+            <span class="label">Files</span>
+        </button>
+        <button id="btn-nav-keyboard" class="nav-btn">
+            <span class="icon">⌨️</span>
+            <span class="label">Keys</span>
+        </button>
+        <button id="btn-nav-settings" class="nav-btn">
+            <span class="icon">⚙️</span>
+            <span class="label">Opt</span>
+        </button>
+    </div>
+
+    <!-- 세션 모달 팝업 -->
+    <div id="mobile-sessions-modal" class="bottom-sheet" style="display: none;">
+        <div class="sheet-header">
+            <h3>Active Sessions</h3>
+            <button class="close-sheet">✕</button>
+        </div>
+        <div class="sheet-content" id="mobile-session-list">
+            <p>Loading...</p>
+        </div>
+        <div class="sheet-footer">
+            <input type="text" id="mobile-new-session-name" placeholder="새 세션 이름">
+            <button id="btn-mobile-new-session" class="primary-btn">생성</button>
+        </div>
+    </div>
+
+    <!-- 파일 탐색기 모달 팝업 -->
+    <div id="mobile-files-modal" class="bottom-sheet" style="display: none;">
+        <div class="sheet-header">
+            <h3 id="mobile-pwd">/</h3>
+            <button id="btn-mobile-sync-pwd" title="Sync">📍</button>
+            <button class="close-sheet">✕</button>
+        </div>
+        <div class="sheet-content" id="mobile-file-tree">
+            <!-- File items will go here -->
+        </div>
+    </div>
+
+    <!-- 가상 키보드(단축키) 모달 팝업 -->
+    <div id="mobile-keyboard-modal" class="bottom-sheet" style="display: none;">
+        <div class="sheet-header">
+            <h3>Virtual Keys</h3>
+            <button class="close-sheet">✕</button>
+        </div>
+        <div class="sheet-content keyboard-grid">
+            <button class="v-key" data-key="Ctrl+C">Ctrl+C</button>
+            <button class="v-key" data-key="Ctrl+Y">Ctrl+Y</button>
+            <button class="v-key" data-key="Esc">Esc</button>
+            <button class="v-key" data-key="Up">↑</button>
+            <button class="v-key" data-key="Down">↓</button>
+            <button class="v-key" data-key="Enter">Enter</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <script src="socket.io/socket.io.js"></script>
+    <!-- 모듈 기반 동작을 위해 module 타입 지정 -->
+    <script type="module" src="js/mobile-app.js"></script>
+</body>
+</html>

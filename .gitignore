@@ -1,0 +1,10 @@
+node_modules
+main/
+jerry/
+logs/
+release/
+.aionui-logs/
+.gcw.conf
+.gd.conf
+deploy-colab.sh
+prod/

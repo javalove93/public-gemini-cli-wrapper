@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keyboard Shortcut Tester</title>
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --text-color: #d4d4d4;
+            --display-bg: #252526;
+            --display-border: #3e3e42;
+            --display-text: #ce9178;
+            --details-bg: #2d2d2d;
+            --details-border: #454545;
+            --label-color: #9cdcfe;
+            --value-color: #b5cea8;
+            --title-color: #569cd6;
+            --hint-color: #808080;
+            --btn-bg: #333;
+            --btn-text: #fff;
+            --btn-border: #555;
+        }
+
+        body.light-theme {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --display-bg: #f5f5f5;
+            --display-border: #cccccc;
+            --display-text: #c53e00;
+            --details-bg: #f9f9f9;
+            --details-border: #dddddd;
+            --label-color: #005cc5;
+            --value-color: #22863a;
+            --title-color: #005cc5;
+            --hint-color: #6a737d;
+            --btn-bg: #f0f0f0;
+            --btn-text: #333;
+            --btn-border: #ccc;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .container {
+            text-align: center;
+            width: 80%;
+            max-width: 600px;
+            position: relative;
+        }
+        h1 { color: var(--title-color); }
+        
+        #theme-toggle {
+            position: absolute;
+            top: 10px;
+            right: 0;
+            padding: 8px 16px;
+            background-color: var(--btn-bg);
+            color: var(--btn-text);
+            border: 1px solid var(--btn-border);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        #theme-toggle:hover {
+            opacity: 0.8;
+        }
+
+        #display {
+            font-size: 3rem;
+            font-weight: bold;
+            margin: 20px 0;
+            padding: 20px;
+            background-color: var(--display-bg);
+            border-radius: 10px;
+            border: 2px solid var(--display-border);
+            min-height: 1.2em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--display-text);
+            transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+        }
+        .details {
+            background-color: var(--details-bg);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: left;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.9rem;
+            border: 1px solid var(--details-border);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            border-bottom: 1px solid var(--details-border);
+            padding-bottom: 2px;
+        }
+        .detail-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .label { color: var(--label-color); transition: color 0.3s; }
+        .value { color: var(--value-color); transition: color 0.3s; }
+        .hint {
+            margin-top: 20px;
+            color: var(--hint-color);
+            font-size: 0.8rem;
+            transition: color 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button id="theme-toggle">☀️ Light Mode</button>
+        <h1>Keyboard Shortcut Tester</h1>
+        <div id="display">Press any key...</div>
+        <div class="details" id="details">
+            <div class="detail-row"><span class="label">key:</span> <span class="value" id="val-key">-</span></div>
+            <div class="detail-row"><span class="label">code:</span> <span class="value" id="val-code">-</span></div>
+            <div class="detail-row"><span class="label">which:</span> <span class="value" id="val-which">-</span></div>
+            <div class="detail-row"><span class="label">location:</span> <span class="value" id="val-location">-</span></div>
+            <div class="detail-row"><span class="label">modifiers:</span> <span class="value" id="val-modifiers">-</span></div>
+            <div class="detail-row"><span class="label">repeat:</span> <span class="value" id="val-repeat">-</span></div>
+        </div>
+        <p class="hint">일부 브라우저 기본 단축키는 차단될 수 있습니다.</p>
+    </div>
+
+    <script>
+        const display = document.getElementById('display');
+        const valKey = document.getElementById('val-key');
+        const valCode = document.getElementById('val-code');
+        const valWhich = document.getElementById('val-which');
+        const valLocation = document.getElementById('val-location');
+        const valModifiers = document.getElementById('val-modifiers');
+        const valRepeat = document.getElementById('val-repeat');
+        const themeToggle = document.getElementById('theme-toggle');
+
+        // 설정 동기화 유틸리티
+        const uiSettings = window.__GCW_SETTINGS__ || {};
+        async function saveUiSetting(key, value) {
+            uiSettings[key] = String(value);
+            try {
+                await fetch('api/ui-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ [key]: value })
+                });
+            } catch (e) {
+                console.error('Failed to save UI setting', key, e);
+            }
+        }
+        function getUiSetting(key) {
+            return uiSettings[key];
+        }
+
+        // Theme Toggle Logic
+        let isDarkMode = true;
+        
+        // Check saved preference
+        const savedTheme = getUiSetting('GCW_UI_THEME_TESTER');
+        if (savedTheme === 'light') {
+            toggleTheme();
+        }
+
+        themeToggle.addEventListener('click', themeToggleHandler);
+
+        function themeToggleHandler() {
+            toggleTheme();
+            saveUiSetting('GCW_UI_THEME_TESTER', isDarkMode ? 'dark' : 'light');
+        }
+
+        function toggleTheme() {
+            isDarkMode = !isDarkMode;
+            if (isDarkMode) {
+                document.body.classList.remove('light-theme');
+                themeToggle.textContent = '☀️ Light Mode';
+            } else {
+                document.body.classList.add('light-theme');
+                themeToggle.textContent = '🌙 Dark Mode';
+            }
+            // Remove focus from button to not interfere with key testing
+            themeToggle.blur();
+        }
+
+        window.addEventListener('keydown', (e) => {
+            // Prevent default for common shortcuts to capture them
+            if (e.ctrlKey || e.metaKey || (e.key && e.key.length > 1)) {
+                if (!['F12', 'F5', 'r'].includes(e.key)) {
+                    // e.preventDefault(); // Uncomment if you want to block all shortcuts
+                }
+            }
+
+            // Build friendly name
+            const modifiers = [];
+            if (e.metaKey) modifiers.push(navigator.platform.includes('Mac') ? 'Cmd' : 'Win');
+            if (e.ctrlKey) modifiers.push('Ctrl');
+            if (e.altKey) modifiers.push('Alt');
+            if (e.shiftKey) modifiers.push('Shift');
+
+            let keyName = e.key;
+            if (keyName === ' ') keyName = 'Space';
+            
+            const fullShortcut = [...modifiers];
+            if (!['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+                fullShortcut.push(keyName);
+            }
+
+            display.textContent = fullShortcut.join(' + ') || keyName;
+
+            // Update details
+            valKey.textContent = `"${e.key}"`;
+            valCode.textContent = `"${e.code}"`;
+            valWhich.textContent = e.which;
+            valLocation.textContent = e.location;
+            valRepeat.textContent = e.repeat;
+
+            const modStatus = [];
+            if (e.ctrlKey) modStatus.push('ctrlKey');
+            if (e.shiftKey) modStatus.push('shiftKey');
+            if (e.altKey) modStatus.push('altKey');
+            if (e.metaKey) modStatus.push('metaKey');
+            valModifiers.textContent = modStatus.join(', ') || 'none';
+        });
+    </script>
+</body>
+</html>
