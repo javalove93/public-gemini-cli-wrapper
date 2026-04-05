@@ -38,6 +38,111 @@
         </div>
     </div>
 
+    <!-- Mermaid Modal -->
+    <div id="mermaid-modal" class="modal hidden" style="z-index: 2000;">
+        <div class="modal-content" style="width: 95%; height: 95%; max-width: 1600px; display: flex; flex-direction: column; background-color: #ffffff;">
+            <div class="modal-header" style="background-color: #333; color: white; display: flex; justify-content: space-between; align-items: center; padding: 5px 15px;">
+                <span style="font-weight: bold;">Mermaid Diagram Renderer</span>
+                
+                <!-- 줌 컨트롤 버튼 -->
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button id="btn-zoom-out" style="padding: 4px 10px; cursor: pointer; background: #555; color: white; border: 1px solid #777; border-radius: 3px;">➖ Zoom Out</button>
+                    <span id="zoom-level" style="font-size: 14px; min-width: 40px; text-align: center;">100%</span>
+                    <button id="btn-zoom-in" style="padding: 4px 10px; cursor: pointer; background: #555; color: white; border: 1px solid #777; border-radius: 3px;">➕ Zoom In</button>
+                    <button id="btn-zoom-reset" style="padding: 4px 10px; cursor: pointer; background: #555; color: white; border: 1px solid #777; border-radius: 3px; margin-left: 5px;">Reset</button>
+                </div>
+                
+                <div class="modal-controls">
+                    <button id="mermaid-close-btn" style="color: white; background: transparent; border: none; font-size: 28px; cursor: pointer; margin-left: 20px;">&times;</button>
+                </div>
+            </div>
+            <div id="mermaid-render-container" style="flex: 1; overflow: auto; padding: 20px; background: white; text-align: center; position: relative;">
+                <style>
+                    /* Mermaid SVG가 컨테이너 내에서 기본 크기를 잡도록 함 */
+                    .mermaid svg { 
+                        height: auto !important;
+                        min-width: 600px;
+                        transition: transform 0.2s ease-out; /* 줌 애니메이션 효과 */
+                        transform-origin: top center; /* 상단 중앙을 기준으로 줌 */
+                    }
+                </style>
+                <!-- 렌더링된 다이어그램이 들어갈 위치 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 전역으로 접근 가능한 Mermaid 렌더링 함수
+        window.showMermaidModal = function(code) {
+            const modal = document.getElementById('mermaid-modal');
+            const container = document.getElementById('mermaid-render-container');
+            const closeBtn = document.getElementById('mermaid-close-btn');
+            
+            // 줌 관련 변수 및 요소
+            let currentZoom = 1.0;
+            const btnZoomIn = document.getElementById('btn-zoom-in');
+            const btnZoomOut = document.getElementById('btn-zoom-out');
+            const btnZoomReset = document.getElementById('btn-zoom-reset');
+            const zoomLevelTxt = document.getElementById('zoom-level');
+
+            if (modal && container && window.mermaid) {
+                // 초기화: 반응형 옵션 활성화
+                window.mermaid.initialize({ 
+                    startOnLoad: false, 
+                    theme: 'default', 
+                    securityLevel: 'loose',
+                    flowchart: { useMaxWidth: false, htmlLabels: true },
+                    sequence: { useMaxWidth: false },
+                    themeVariables: { fontSize: '16px' }
+                });
+
+                // 모달 띄우기
+                modal.classList.remove('hidden');
+                modal.style.display = 'block';
+
+                // 내부 초기화 및 대상 생성
+                container.innerHTML = '';
+                const diagDiv = document.createElement('div');
+                diagDiv.className = 'mermaid';
+                diagDiv.textContent = code;
+                container.appendChild(diagDiv);
+
+                // 렌더링
+                try {
+                    window.mermaid.init(undefined, diagDiv);
+                } catch (e) {
+                    console.error('[VIEWER] Mermaid Error:', e);
+                    container.innerHTML = `<div style="color: red; padding: 20px;">Failed to render diagram:<br/><pre style="text-align: left;">${e.message}</pre></div>`;
+                }
+
+                // 줌 적용 함수
+                const applyZoom = () => {
+                    const svg = container.querySelector('svg');
+                    if (svg) {
+                        svg.style.transform = `scale(${currentZoom})`;
+                        zoomLevelTxt.textContent = `${Math.round(currentZoom * 100)}%`;
+                    }
+                };
+
+                // 줌 리스너 등록 (기존 리스너 덮어쓰기를 위해 cloneNode 기법이나 이벤트 직접 바인딩)
+                btnZoomIn.onclick = () => { currentZoom += 0.2; applyZoom(); };
+                btnZoomOut.onclick = () => { currentZoom = Math.max(0.2, currentZoom - 0.2); applyZoom(); };
+                btnZoomReset.onclick = () => { currentZoom = 1.0; applyZoom(); };
+
+                // 초기 줌 상태 반영
+                setTimeout(applyZoom, 100);
+
+                // 닫기 버튼 이벤트
+                closeBtn.onclick = () => {
+                    modal.classList.add('hidden');
+                    modal.style.display = 'none';
+                    container.innerHTML = '';
+                    currentZoom = 1.0; // 상태 초기화
+                };
+            }
+        };
+    </script>
+
     <div id="main-container">
         <!-- 일반 텍스트용 컨테이너 -->
         <div id="text-container" class="full-view hidden">
@@ -69,7 +174,9 @@
 
     <script src="socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@9.4.3/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script type="module" src="viewer.js"></script>
+    <!-- 캐시 방지를 위해 서버사이드 혹은 빌드 타임에 처리하는 것이 좋으나, 임시로 쿼리 스트링 활용 -->
+    <script type="module" src="viewer.js?v=260405-1200"></script>
 </body>
 </html>

@@ -57,7 +57,7 @@ export class ViewerFactory {
             if (lowerPath.endsWith('.md')) {
                 if (!this._viewers.markdown) {
                     console.log('[VIEWER] Dynamically importing MarkdownViewer...');
-                    const { MarkdownViewer } = await import('./viewers/MarkdownViewer.js');
+                    const { MarkdownViewer } = await import(`./viewers/MarkdownViewer.js?v=${Date.now()}`);
                     this._viewers.markdown = new MarkdownViewer(this.markdownContainer, this.textContainer, this.mdRaw, this.mdRendered);
                 }
                 this._viewers.markdown.render(content, filePath);

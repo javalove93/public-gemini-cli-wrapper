@@ -46,6 +46,11 @@ function parseConfig() {
                 if (!isNaN(portVal)) {
                     result.startPort = portVal;
                 }
+            } else if (trimmed.startsWith('GCW_INSTANCE=')) {
+                const val = trimmed.split('=')[1];
+                if (val) {
+                    process.env.GCW_INSTANCE = val.trim();
+                }
             }
         });
     }
@@ -254,6 +259,7 @@ app.get('/', (req, res) => {
     // 1. 최신 설정 다시 읽기 (Hot Reloading of Config)
     const freshConfig = parseConfig();
     const freshProjects = freshConfig.projects;
+    const instanceName = process.env.GCW_INSTANCE ? `[${process.env.GCW_INSTANCE}] ` : '';
 
     // 2. 설정 파일에 있는 프로젝트들을 순회하며 새로운 프로젝트 띄우기
     // 주의(Note): 
@@ -274,7 +280,7 @@ app.get('/', (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Gemini CLI Wrapper - Workspace</title>
+        <title>${instanceName}Gemini CLI Wrapper - Workspaces</title>
         <style>
             body { font-family: sans-serif; background-color: #1e1e1e; color: #d4d4d4; padding: 2rem; max-width: 800px; margin: 0 auto; }
             h1 { color: #569cd6; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
@@ -441,7 +447,7 @@ app.get('/', (req, res) => {
     </head>
     <body>
         <div class="header-row">
-            <h1>Gemini CLI Wrapper - Workspaces</h1>
+            <h1>${instanceName}Gemini CLI Wrapper - Workspaces</h1>
             <button class="temp-ws-btn" onclick="openTempWS()">[ Temp Workspace ]</button>
         </div>
 

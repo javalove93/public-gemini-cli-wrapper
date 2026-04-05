@@ -51,12 +51,14 @@ const optCmdY = document.getElementById('opt-cmd-y');
 const optCmdO = document.getElementById('opt-cmd-o');
 const optMapHome = document.getElementById('opt-map-home');
 const optMapEnd = document.getElementById('opt-map-end');
+const optMapPrefix = document.getElementById('opt-map-prefix');
 const optMapPaste = document.getElementById('opt-map-paste');
 const optKeepTmux = document.getElementById('opt-keep-tmux');
 const btnRecordShortcut = document.getElementById('record-custom-shortcut');
 const btnRecordOShortcut = document.getElementById('record-o-shortcut');
 const btnRecordHomeShortcut = document.getElementById('record-home-shortcut');
 const btnRecordEndShortcut = document.getElementById('record-end-shortcut');
+const btnRecordPrefixShortcut = document.getElementById('record-prefix-shortcut');
 const btnRecordPasteShortcut = document.getElementById('record-paste-shortcut');
 const optTheme = document.getElementById('opt-theme');
 const currentSessionNameSpan = document.getElementById('current-session-name');
@@ -285,6 +287,7 @@ let fitAddon;
 let recentThumbnails = []; // 최대 5개
 let selectedFileContext = null; // 컨텍스트 메뉴가 열린 대상 파일 정보
 let clipboardHistory = []; // 최대 5개 저장
+let instanceName = null; // 인스턴스 구분자 (예: DEV, PROD)
 
 let customShortcut = {
     metaKey: true,
@@ -313,6 +316,13 @@ let customEndShortcut = {
     altKey: false,
     shiftKey: false,
     key: 'arrowright'
+};
+let customPrefixShortcut = {
+    metaKey: false,
+    ctrlKey: true,
+    altKey: false,
+    shiftKey: false,
+    key: 'b'
 };
 let customPasteShortcut = {
     metaKey: true,
@@ -380,6 +390,15 @@ const loadSettings = () => {
         try { customEndShortcut = JSON.parse(savedEndShortcut); } catch(e) {}
     }
     if (btnRecordEndShortcut) btnRecordEndShortcut.textContent = formatShortcut(customEndShortcut);
+
+    const isMapPrefix = getUiSetting('GCW_UI_OPT_MAP_PREFIX') === 'true';
+    if (optMapPrefix) optMapPrefix.checked = isMapPrefix;
+
+    const savedPrefixShortcut = getUiSetting('GCW_UI_PREFIX_SHORTCUT');
+    if (savedPrefixShortcut) {
+        try { customPrefixShortcut = JSON.parse(savedPrefixShortcut); } catch(e) {}
+    }
+    if (btnRecordPrefixShortcut) btnRecordPrefixShortcut.textContent = formatShortcut(customPrefixShortcut);
 
     const isMapPaste = getUiSetting('GCW_UI_OPT_MAP_PASTE') !== 'false'; // Default to true
     if (optMapPaste) optMapPaste.checked = isMapPaste;
@@ -488,6 +507,11 @@ if (optMapEnd) {
         saveUiSetting('GCW_UI_OPT_MAP_END', optMapEnd.checked);
     };
 }
+if (optMapPrefix) {
+    optMapPrefix.onchange = () => {
+        saveUiSetting('GCW_UI_OPT_MAP_PREFIX', optMapPrefix.checked);
+    };
+}
 if (optMapPaste) {
     optMapPaste.onchange = () => {
         saveUiSetting('GCW_UI_OPT_MAP_PASTE', optMapPaste.checked);
@@ -517,6 +541,9 @@ if (btnRecordHomeShortcut) {
 }
 if (btnRecordEndShortcut) {
     btnRecordEndShortcut.onclick = () => handleRecordClick(btnRecordEndShortcut, 'end');
+}
+if (btnRecordPrefixShortcut) {
+    btnRecordPrefixShortcut.onclick = () => handleRecordClick(btnRecordPrefixShortcut, 'prefix');
 }
 if (btnRecordPasteShortcut) {
     btnRecordPasteShortcut.onclick = () => handleRecordClick(btnRecordPasteShortcut, 'paste');
@@ -559,6 +586,11 @@ window.addEventListener('keydown', (e) => {
         btnRecordEndShortcut.textContent = formatShortcut(customEndShortcut);
         btnRecordEndShortcut.classList.remove('active');
         saveUiSetting('GCW_UI_END_SHORTCUT', JSON.stringify(customEndShortcut));
+    } else if (recordingTarget === 'prefix') {
+        customPrefixShortcut = newShortcut;
+        btnRecordPrefixShortcut.textContent = formatShortcut(customPrefixShortcut);
+        btnRecordPrefixShortcut.classList.remove('active');
+        saveUiSetting('GCW_UI_PREFIX_SHORTCUT', JSON.stringify(customPrefixShortcut));
     } else if (recordingTarget === 'paste') {
         customPasteShortcut = newShortcut;
         btnRecordPasteShortcut.textContent = formatShortcut(customPasteShortcut);
@@ -847,6 +879,20 @@ function triggerPwdAutoSync() {
             return false;
         }
 
+        // Map custom shortcut to Ctrl+B (Prefix) 설정 확인
+        if (optMapPrefix && optMapPrefix.checked &&
+            e.metaKey === customPrefixShortcut.metaKey &&
+            e.ctrlKey === customPrefixShortcut.ctrlKey &&
+            e.altKey === customPrefixShortcut.altKey &&
+            e.shiftKey === customPrefixShortcut.shiftKey &&
+            e.key.toLowerCase() === customPrefixShortcut.key) {
+
+            if (e.type === 'keydown') {
+                socket.emit('input', '\x02'); // \x02 is Ctrl+B
+            }
+            return false;
+        }
+
         // Map custom shortcut to Paste 설정 확인
         if (optMapPaste && optMapPaste.checked &&
             e.metaKey === customPasteShortcut.metaKey &&
@@ -1062,7 +1108,9 @@ function attachSession(name) {
     sessionManager.style.display = 'none';
     mainLayout.style.display = 'flex';
     currentSessionNameSpan.textContent = `Session: ${name}`;
-    document.title = `${name} - Gemini CLI WebUI`;
+    
+    updateDocumentTitle();
+    
     btnSplitH.style.display = 'flex';
     btnSplitV.style.display = 'flex';
     btnResetClients.style.display = 'flex';
@@ -1198,11 +1246,43 @@ if (inputNewSessionName) {
 tmuxManager.onSessionChanged = (name) => {
     console.log('[VIEW] Session changed:', name);
     attachSession(name); // 기존 UI 업데이트 로직 재사용
+    
+    // 세션이 변경되거나 재연결되면 오버레이를 숨김
+    const overlay = document.getElementById('disconnect-overlay');
+    if (overlay) overlay.style.display = 'none';
 };
 
 tmuxManager.onSessionExited = () => {
     if (term) term.write('\r\n\x1b[31m[Session Disconnected]\x1b[0m\r\n');
+    
+    // 연결이 끊어지면 오버레이를 표시
+    const overlay = document.getElementById('disconnect-overlay');
+    if (overlay) overlay.style.display = 'flex';
 };
+
+// 재연결 버튼 이벤트 리스너 추가
+document.addEventListener('DOMContentLoaded', () => {
+    const btnReconnect = document.getElementById('btn-reconnect');
+    if (btnReconnect) {
+        btnReconnect.addEventListener('click', () => {
+            // 현재 세션 이름으로 다시 attach 시도 (-d 옵션에 의해 제어권을 가져옴)
+            const currentSession = tmuxManager.currentSession;
+            if (currentSession) {
+                // UI 오버레이 숨김
+                document.getElementById('disconnect-overlay').style.display = 'none';
+                if (term) {
+                    term.clear();
+                    term.write('\r\n\x1b[33mReconnecting to session...\x1b[0m\r\n');
+                }
+                // attach 이벤트 발생시켜 재접속
+                socket.emit('attach', currentSession);
+            } else {
+                // 세션 이름이 없는 경우 페이지 새로고침
+                window.location.reload();
+            }
+        });
+    }
+});
 
 tmuxManager.onWindowListUpdated = (windows) => {
     console.log('[VIEW] Window list updated:', windows);
@@ -1580,17 +1660,43 @@ sidebar.addEventListener('drop', (e) => {
     }
 });
 
+// 타이틀 업데이트 헬퍼 함수
+function updateDocumentTitle() {
+    if (!tmuxManager.currentSession) return;
+    const titlePrefix = instanceName ? `${instanceName}-` : '';
+    document.title = `${titlePrefix}${tmuxManager.currentSession} - Gemini CLI WebUI`;
+}
+
+/**
+ * 서버에서 인스턴스 정보를 가져와 타이틀을 갱신합니다. (비차단 방식)
+ */
+async function loadInstanceName() {
+    try {
+        const sysInfoRes = await fetch(getApiPath('/api/system-info'));
+        const sysInfo = await sysInfoRes.json();
+        instanceName = sysInfo.instanceName;
+        updateDocumentTitle();
+        console.log(`[DEBUG] Instance name loaded: ${instanceName}`);
+    } catch (e) {
+        console.warn('[DEBUG] Failed to fetch instance name, using default title.', e);
+    }
+}
+
 // 초기 실행
 async function initApp() {
+    // 인스턴스 정보 로드 시작 (await 하지 않음)
+    loadInstanceName();
+
     try {
         const urlParams = new URLSearchParams(window.location.search);
         const forceSelect = urlParams.get('select') === 'true';
         const sessionFromUrl = urlParams.get('session');
 
         // 서버 시스템 정보(마스터 포트 및 기본 세션 정보) 조회
+        // 세션 자동 접속을 위해 필수 정보만 빠르게 가져옴 (최대 2초 타임아웃 권장하나 일단 await 유지)
         const sysInfoRes = await fetch(getApiPath('/api/system-info'));
         const sysInfo = await sysInfoRes.json();
-
+        
         // 우선순위: URL 파라미터 > 서버 기본값
         const defaultSession = sessionFromUrl || sysInfo.defaultSession;
 

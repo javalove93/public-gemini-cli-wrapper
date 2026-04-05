@@ -2,6 +2,8 @@ import { socketClient } from './js/core/SocketClient.js';
 import { fileManager } from './js/core/FileManager.js';
 import { ViewerFactory } from './js/modules/ViewerFactory.js';
 
+console.log('[VIEWER.JS] ---> LOADED AT:', new Date().toISOString(), '| VERSION: MERMAID MODAL V2 <---');
+
 // 설정 동기화 유틸리티
 const uiSettings = window.__GCW_SETTINGS__ || {};
 async function saveUiSetting(key, value) {
@@ -39,14 +41,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const urlParams = new URLSearchParams(window.location.search);
     let filePath = urlParams.get('path');
+    let instanceName = null;
 
-    if (filePath) {
-        filePathSpan.textContent = filePath;
-        document.title = `${filePath.split('/').pop()} - Viewer`;
-    } else {
-        filePathSpan.textContent = 'No file selected.';
-        document.title = 'Viewer';
-    }
+    const updateTitle = () => {
+        const titlePrefix = instanceName ? `${instanceName}-` : '';
+        if (filePath) {
+            filePathSpan.textContent = filePath;
+            document.title = `${titlePrefix}${filePath.split('/').pop()} - Viewer`;
+        } else {
+            filePathSpan.textContent = 'No file selected.';
+            document.title = `${titlePrefix}Viewer`;
+        }
+    };
+
+    // 인스턴스 정보 가져오기 (비차단)
+    const fetchSystemInfo = async () => {
+        try {
+            const res = await fetch(socketClient.getApiPath('/api/system-info'));
+            const data = await res.json();
+            instanceName = data.instanceName;
+            updateTitle();
+        } catch (e) {
+            console.warn('Failed to fetch system info in viewer', e);
+        }
+    };
+
+    // 초기 타이틀 즉시 설정 및 정보 로드 시작
+    updateTitle();
+    fetchSystemInfo();
 
     // Socket.io 연결 및 파일 감시 요청
     const socket = socketClient.connect('viewer');
@@ -263,8 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     filePath = f.path;
-                    filePathSpan.textContent = filePath;
-                    document.title = `${filePath.split('/').pop()} - Viewer`;
+                    updateTitle();
                     
                     const newUrl = new URL(window.location);
                     newUrl.searchParams.set('path', filePath);

@@ -47,8 +47,9 @@ check_and_add_setting() {
 }
 
 echo "--- Checking Basic Configurations ---"
-# 터미널 색상 지원 (WebUI 렌더링을 위해 256color 이상 권장)
-check_and_add_setting "default-terminal" "set -g default-terminal \"screen-256color\"" "256 color support"
+# 터미널 색상 지원 및 트루컬러(TrueColor) 활성화 (현대적인 UI 렌더링 권장)
+check_and_add_setting "default-terminal" "set -g default-terminal \"tmux-256color\"" "tmux-256color support"
+check_and_add_setting "terminal-overrides" "set -ga terminal-overrides \",*256col*:Tc\"" "TrueColor (24-bit) support"
 # 마우스 스크롤 및 선택 지원
 check_and_add_setting "mouse" "set -g mouse on" "mouse support"
 # 클립보드 연동 (OSC 52)

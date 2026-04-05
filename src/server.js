@@ -40,11 +40,19 @@ function getUiSettings() {
             let count = 0;
             content.split('\n').forEach(line => {
                 const trimmed = line.trim();
-                if (trimmed && !trimmed.startsWith('#') && trimmed.startsWith('GCW_UI_')) {
-                    const [key, ...valueParts] = trimmed.split('=');
-                    const value = valueParts.join('=').trim();
-                    settings[key.trim()] = value;
-                    count++;
+                if (trimmed && !trimmed.startsWith('#')) {
+                    if (trimmed.startsWith('GCW_UI_') || trimmed.startsWith('GCW_INSTANCE=')) {
+                        const [key, ...valueParts] = trimmed.split('=');
+                        const value = valueParts.join('=').trim();
+                        const k = key.trim();
+                        settings[k] = value;
+                        
+                        // GCW_INSTANCE의 경우 process.env에도 반영 (API에서 사용 위함)
+                        if (k === 'GCW_INSTANCE') {
+                            process.env.GCW_INSTANCE = value;
+                        }
+                        count++;
+                    }
                 }
             });
             console.log(`[DEBUG-UI] Successfully loaded ${count} UI settings from .gcw.conf`);
@@ -125,7 +133,8 @@ app.post('/api/ui-settings', (req, res) => {
 app.get('/api/system-info', (req, res) => {
     res.json({
         masterPort: process.env.GCW_MASTER_PORT || '5001',
-        defaultSession: process.env.GCW_DEFAULT_SESSION || null
+        defaultSession: process.env.GCW_DEFAULT_SESSION || null,
+        instanceName: process.env.GCW_INSTANCE || null
     });
 });
 

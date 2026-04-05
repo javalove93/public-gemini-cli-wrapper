@@ -126,15 +126,15 @@ class TerminalHandler {
      * 공통 PTY 스폰 및 스트리밍 로직
      */
     _connectToTmux(sessionName, customEnv) {
-        // 2. node-pty를 통해 해당 Tmux 세션에 접속
+        // 2. node-pty를 통해 해당 Tmux 세션에 접속 (-d 옵션으로 기존 접속자 강제 분리)
         let command = 'tmux';
-        let args = ['attach-session', '-t', sessionName];
+        let args = ['attach-session', '-d', '-t', sessionName];
 
         // macOS 환경(darwin) 우회 코드 복구
         if (os.platform() === 'darwin') {
             const shell = process.env.SHELL || '/bin/sh';
             command = shell;
-            args = ['-c', `exec tmux attach -t "${sessionName}"`];
+            args = ['-c', `exec tmux attach -d -t "${sessionName}"`];
         }
 
         this.ptyProcess = pty.spawn(command, args, {
