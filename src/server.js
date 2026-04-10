@@ -200,7 +200,7 @@ app.get('/api/tmux/pwd', (req, res) => {
 
 const server = http.createServer(app);
 const io = new Server(server, {
-    maxHttpBufferSize: 1e8 // 100 MB for uploads
+    maxHttpBufferSize: 1e9 // 1 GB for uploads
 });
 
 const PORT_ARG_INDEX = process.argv.indexOf('--port');
@@ -213,13 +213,22 @@ io.on('connection', (socket) => {
     registerFileHandlers(socket, io);
 
     let dirWatcher = null;
+    let dirWatchTimeout = null;
     socket.on('watch_directory', (dirPath) => {
         if (dirWatcher) dirWatcher.close();
+        if (dirWatchTimeout) clearTimeout(dirWatchTimeout);
+        
         try {
             const absPath = path.resolve(process.cwd(), dirPath || '.');
             if (!fs.existsSync(absPath)) return;
+            
             dirWatcher = fs.watch(absPath, () => {
-                socket.emit('directory_changed', { dir: dirPath });
+                // 디바운싱: 300ms 이내에 연속 발생 시 무시하고 마지막 한 번만 전송
+                if (dirWatchTimeout) clearTimeout(dirWatchTimeout);
+                dirWatchTimeout = setTimeout(() => {
+                    socket.emit('directory_changed', { dir: dirPath });
+                    dirWatchTimeout = null;
+                }, 300);
             });
         } catch (e) { console.error('Watcher error:', e); }
     });
@@ -236,6 +245,7 @@ io.on('connection', (socket) => {
             });
         }
         if (dirWatcher) dirWatcher.close();
+        if (dirWatchTimeout) clearTimeout(dirWatchTimeout);
     });
 });
 

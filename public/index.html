@@ -22,17 +22,22 @@
 
     <div id="main-layout" style="display: none;">
         <div id="sidebar">
-            <div id="sidebar-header">
-                <span>File Explorer</span>
-                <button id="btn-open-viewer-main" title="Open selected file in Viewer" style="background:none; color:#569cd6; border:none; padding:0; cursor:pointer; font-size:11px; text-decoration:underline;">Open</button>
+            <div id="sidebar-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="flex-shrink: 0; margin-right: auto;">File Explorer</span>
+                <div style="display: flex; gap: 8px; flex-shrink: 0;">
+                    <button id="btn-file-tree-style" title="Toggle File Tree Style (Alpha -> Mid-Truncate -> Recent)" style="background:none; color:#569cd6; border:none; padding:0; cursor:pointer; font-size:11px; text-decoration:underline;">Style</button>
+                    <button id="btn-open-viewer-main" title="Open selected file in Viewer" style="background:none; color:#569cd6; border:none; padding:0; cursor:pointer; font-size:11px; text-decoration:underline;">Open</button>
+                </div>
             </div>
             <div id="dir-nav">
                 <input type="text" id="dir-input" placeholder="Current Directory (e.g., /)">
                 <button id="btn-sync-tmux" title="Sync with Tmux Session PWD">📍</button>
             </div>
             <div id="file-tree"></div>
-            <div id="clipboard-history-container">
-                <div id="clipboard-history-header">Clipboard History</div>
+            <div id="upload-status-container" class="upload-status-container hidden">
+                <!-- 업로드 중인 파일 항목들이 여기에 동적으로 추가됨 -->
+            </div>
+            <div id="clipboard-history-container">                <div id="clipboard-history-header">Clipboard History</div>
                 <div id="clipboard-history"></div>
             </div>
         </div>

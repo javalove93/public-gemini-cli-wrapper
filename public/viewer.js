@@ -2,7 +2,90 @@ import { socketClient } from './js/core/SocketClient.js';
 import { fileManager } from './js/core/FileManager.js';
 import { ViewerFactory } from './js/modules/ViewerFactory.js';
 
-console.log('[VIEWER.JS] ---> LOADED AT:', new Date().toISOString(), '| VERSION: MERMAID MODAL V2 <---');
+console.log('[VIEWER.JS] ---> LOADED AT:', new Date().toISOString(), '| VERSION: BASE64 VIRTUAL FOLDING <---');
+
+// --- Base64 Virtual Folding Utility (A안) ---
+// 텍스트 내의 Base64 문자열을 찾아 CSS로 제어 가능한 span 태그로 감쌈
+window.wrapBase64 = function(text) {
+    if (!text) return '';
+    
+    // HTML 이스케이프 (innerHTML 사용을 위해 안전하게 처리)
+    const escaped = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+    // "data:image/png;base64," 뒷부분의 긴 문자열을 span으로 감쌈
+    // (보통 500자 이상의 긴 데이터만 대상으로 함)
+    return escaped.replace(/(data:image\/[^;]+;base64,)([a-zA-Z0-9+/=\s]{500,})/g, (match, prefix, data) => {
+        // 썸네일용 URL (공백 제거)
+        const fullSrc = (prefix + data).replace(/\s/g, '');
+        return `<img src="${fullSrc}" class="base64-mini-preview" title="Hover to zoom" onclick="if(window.openModal) window.openModal('${fullSrc}')"><span class="base64-fold" title="Click to expand/collapse">${prefix}${data}</span>`;
+    });
+};
+
+/**
+ * 마크다운의 참조 방식 이미지 정의([image1]: data:...)를 
+ * 실제 본문에서 호출하는 위치(![...][image1]) 바로 뒤로 이동시킴 (뷰어 소스 전용)
+ */
+window.reorderMarkdownImages = function(text) {
+    if (!text) return '';
+    const lines = text.split('\n');
+    const imageDefs = {}; // id -> content (full line)
+    const otherLines = [];
+    const usedIds = new Set();
+
+    // 1. 하단의 이미지 정의문([id]: data:...) 추출
+    // 예: [image1]: data:image/png... 또는 [image1]: <data:image/png...>
+    const defRegex = /^\[([^\]]+)\]:\s*<?\s*(data:image\/[^;]+;base64,[a-zA-Z0-9+/=\s]+)\s*>?/;
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        const match = line.match(defRegex);
+        if (match) {
+            imageDefs[match[1]] = lines[i]; // 원본 줄 그대로 저장
+        } else {
+            otherLines.push(lines[i]);
+        }
+    }
+
+    // 2. 본문에서 참조 위치(![alt][id])를 찾아 바로 뒤에 정의문 삽입
+    const finalLines = [];
+    const refRegex = /!\[[^\]]*\]\[([^\]]+)\]/; // ![설명][id] 형태
+    
+    for (let i = 0; i < otherLines.length; i++) {
+        const line = otherLines[i];
+        finalLines.push(line);
+        
+        const match = line.match(refRegex);
+        if (match) {
+            const id = match[1];
+            if (imageDefs[id]) {
+                finalLines.push(imageDefs[id]); // 바로 아래에 데이터 삽입
+                usedIds.add(id);
+            }
+        }
+    }
+
+    // 3. 혹시 본문에서 참조되지 않은 정의가 있다면 맨 뒤에 다시 붙여줌
+    Object.keys(imageDefs).forEach(id => {
+        if (!usedIds.has(id)) {
+            finalLines.push(imageDefs[id]);
+        }
+    });
+
+    return finalLines.join('\n');
+};
+
+// 전역 클릭 이벤트 리스너 (위임)
+document.addEventListener('click', (e) => {
+    if (e.target && e.target.classList.contains('base64-fold')) {
+        e.target.classList.toggle('expanded');
+    }
+});
+// --------------------------------------------
 
 // 설정 동기화 유틸리티
 const uiSettings = window.__GCW_SETTINGS__ || {};
@@ -31,10 +114,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const mdRendered = document.getElementById('md-rendered');
 
     const openBtn = document.getElementById('open-btn');
+    const editBtn = document.getElementById('edit-btn');
     const fileModal = document.getElementById('file-modal');
     const modalCloseBtn = document.getElementById('modal-close-btn');
     const modalCurrentDir = document.getElementById('modal-current-dir');
     const modalFileList = document.getElementById('modal-file-list');
+    
+    // Edit Modal Elements
+    const editModal = document.getElementById('edit-modal');
+    const editFilePath = document.getElementById('edit-file-path');
+    const editTextarea = document.getElementById('edit-textarea');
+    const editSaveBtn = document.getElementById('edit-save-btn');
+    const editCancelBtn = document.getElementById('edit-cancel-btn');
+    let currentRawContent = '';
+    let savedScrollPercentage = 0;
     
     const sortNameHeader = document.getElementById('sort-name');
     const sortDateHeader = document.getElementById('sort-date');
@@ -156,10 +249,51 @@ document.addEventListener('DOMContentLoaded', () => {
         markdownContainer.classList.toggle('swapped');
     };
 
+    // --- Copy Buttons Logic ---
+    const setupCopyBtn = (btnId, targetElement, isHtml = false) => {
+        const btn = document.getElementById(btnId);
+        if (!btn || !targetElement) return;
+
+        btn.onclick = () => {
+            const textToCopy = isHtml ? targetElement.innerText : targetElement.textContent;
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy text:', err);
+            });
+        };
+    };
+
+    setupCopyBtn('copy-text-btn', textContent);
+    setupCopyBtn('copy-raw-btn', mdRaw);
+    setupCopyBtn('copy-rendered-btn', mdRendered, true); // Rendered view uses innerText
+
+    // --- Print & PDF Buttons Logic ---
+    const bindPrintEvents = () => {
+        document.querySelectorAll('.print-btn, .pdf-btn').forEach(btn => {
+            btn.onclick = () => {
+                window.print();
+            };
+        });
+    };
+    bindPrintEvents();
+    // ---------------------------
+
+    let fileRefreshTimeout = null;
     socket.on('file_changed', (data) => {
         if (data.path === filePath) {
-            console.log('[DEBUG] File changed, reloading content...');
-            loadContent();
+            console.log('[DEBUG] File changed, debouncing reload...');
+            if (fileRefreshTimeout) clearTimeout(fileRefreshTimeout);
+            fileRefreshTimeout = setTimeout(() => {
+                loadContent();
+                fileRefreshTimeout = null;
+            }, 1000);
         }
     });
 
@@ -181,11 +315,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 textContent.style.display = 'block';
                 markdownContainer.style.display = 'none';
                 swapPanesBtn.classList.add('hidden');
+                editBtn.classList.add('hidden');
                 return;
             }
 
+            // 텍스트 파일인 경우 Edit 버튼 표시
+            editBtn.classList.remove('hidden');
+
             // 파일 내용 요청 (Core 사용)
             const content = await fileManager.getFileContent(filePath);
+            currentRawContent = content; // 편집용으로 저장
             
             // 공장에서 적절한 뷰어로 렌더링
             viewerFactory.renderContent(content, filePath);
@@ -198,11 +337,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 markdownContainer.classList.remove('swapped'); // Reset state
             }
             
+            // 저장 후 스크롤 복구 로직
+            if (savedScrollPercentage > 0) {
+                setTimeout(() => {
+                    const activePane = (filePath && filePath.toLowerCase().endsWith('.md')) ? mdRaw.closest('.pane') : textContent.closest('.full-view');
+                    if (activePane) {
+                        activePane.scrollTop = savedScrollPercentage * (activePane.scrollHeight - activePane.clientHeight);
+                    }
+                    savedScrollPercentage = 0; // 복구 후 초기화
+                }, 100);
+            }
+            
         } catch (error) {
             console.error('Failed to load file:', error);
             textContent.textContent = `Error loading file content.\n\nDetails: ${error.message}`;
             textContent.style.display = 'block';
             markdownContainer.style.display = 'none';
+            editBtn.classList.add('hidden');
         }
     };
 
@@ -319,6 +470,100 @@ document.addEventListener('DOMContentLoaded', () => {
             fileModal.classList.add('hidden');
         }
     };
+
+    // --- Edit Modal Logic ---
+    editBtn.onclick = () => {
+        if (!filePath) return;
+        
+        // 현재 활성화된 뷰 컨테이너 찾기 및 스크롤 비율 계산
+        let activePane = null;
+        let scrollPercentage = 0;
+        if (filePath.toLowerCase().endsWith('.md')) {
+            activePane = mdRaw.closest('.pane');
+        } else {
+            activePane = textContent.closest('.full-view');
+        }
+        
+        if (activePane && activePane.scrollHeight > activePane.clientHeight) {
+            scrollPercentage = activePane.scrollTop / (activePane.scrollHeight - activePane.clientHeight);
+        }
+
+        // 모달 준비
+        editFilePath.textContent = `Editing: ${filePath}`;
+        if (editTextarea.value !== currentRawContent) {
+            editTextarea.value = currentRawContent;
+        }
+        editModal.classList.remove('hidden');
+
+        // Textarea 스크롤 및 커서 동기화 (DOM 렌더링 후 적용)
+        setTimeout(() => {
+            const valLen = editTextarea.value.length;
+            // 뷰어의 스크롤 비율에 맞춰 에디터의 커서 위치를 대략적으로 계산
+            const targetCharIdx = Math.floor(valLen * scrollPercentage);
+            
+            // 1. 커서 위치를 먼저 이동 (브라우저의 자동 스크롤 유도)
+            editTextarea.setSelectionRange(targetCharIdx, targetCharIdx);
+            // 2. 포커스
+            editTextarea.focus();
+            
+            // 3. 스크롤 위치를 뷰어 비율에 맞춰 정밀하게 재보정
+            if (editTextarea.scrollHeight > editTextarea.clientHeight) {
+                editTextarea.scrollTop = scrollPercentage * (editTextarea.scrollHeight - editTextarea.clientHeight);
+            }
+        }, 100);
+    };
+
+    editCancelBtn.onclick = () => {
+        editModal.classList.add('hidden');
+    };
+
+    // Textarea 내에서 Tab 키 입력 시 4칸 띄어쓰기로 동작하도록 가로채기
+    editTextarea.addEventListener('keydown', function(e) {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const start = this.selectionStart;
+            const end = this.selectionEnd;
+            this.value = this.value.substring(0, start) + "    " + this.value.substring(end);
+            this.selectionStart = this.selectionEnd = start + 4;
+        }
+    });
+
+    // 파일 저장
+    editSaveBtn.onclick = async () => {
+        const newContent = editTextarea.value;
+        const originalText = editSaveBtn.textContent;
+        editSaveBtn.textContent = 'Saving...';
+        editSaveBtn.disabled = true;
+
+        try {
+            const res = await fetch(socketClient.getApiPath('/api/files/save'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: filePath, content: newContent })
+            });
+
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error || 'Failed to save');
+            }
+
+            // 저장 성공 시 스크롤 위치 저장 후 다시 로드
+            if (editTextarea.scrollHeight > editTextarea.clientHeight) {
+                savedScrollPercentage = editTextarea.scrollTop / (editTextarea.scrollHeight - editTextarea.clientHeight);
+            }
+            
+            editModal.classList.add('hidden');
+            loadContent(); // 뷰어 내용 갱신 (저장 성공 시 fileWatcher보다 더 확실하게 갱신됨)
+            
+        } catch (error) {
+            console.error('Save error:', error);
+            alert(`Save failed: ${error.message}`);
+        } finally {
+            editSaveBtn.textContent = originalText;
+            editSaveBtn.disabled = false;
+        }
+    };
+    // ------------------------
 
     if (filePath) {
         loadContent();

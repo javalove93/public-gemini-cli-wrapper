@@ -36,10 +36,16 @@ export class FileManager {
         });
 
         // 디렉토리 변경 알림 수신 (서버 감시자로부터)
+        let refreshTimeout = null;
         socketClient.on('directory_changed', (data) => {
             if (this.currentDir === data.dir || (this.currentDir === '' && data.dir === '.')) {
-                console.log('[CORE] External directory change detected. Refreshing...');
-                this.loadFileTree(this.currentDir);
+                console.log('[CORE] External directory change detected. Debouncing refresh...');
+                
+                if (refreshTimeout) clearTimeout(refreshTimeout);
+                refreshTimeout = setTimeout(() => {
+                    this.loadFileTree(this.currentDir);
+                    refreshTimeout = null;
+                }, 500);
             }
         });
     }
@@ -75,15 +81,68 @@ export class FileManager {
      * 파일 조작 (명령 전송)
      */
     deleteFile(filePath) {
-        socketClient.emit('delete_file', { filepath: filePath });
+        socketClient.emit('delete_file', { path: filePath });
     }
 
     renameFile(oldPath, newName) {
         socketClient.emit('rename_file', { oldPath: oldPath, newName: newName });
     }
 
-    uploadFile(filename, data, dir = this.currentDir) {
-        socketClient.emit('upload_file', { filename, data, dir });
+    /**
+     * 파일 업로드 (청크 방식)
+     * @param {string} filename - 파일 이름
+     * @param {ArrayBuffer} data - 파일 데이터
+     * @param {string} dir - 대상 디렉토리
+     * @param {function} onProgress - 진행률 콜백 (percent) => {}
+     */
+    async uploadFile(filename, data, dir = this.currentDir, onProgress = null) {
+        const MAX_SIZE = 1024 * 1024 * 1024; // 1GB
+        if (data.byteLength > MAX_SIZE) {
+            alert(`파일 용량이 너무 큽니다. (최대 1GB, 현재: ${(data.byteLength / (1024 * 1024)).toFixed(2)}MB)\n1GB 이상의 파일은 SSH 또는 외부 툴을 이용해 업로드해주세요.`);
+            return;
+        }
+
+        const uploadId = (typeof crypto.randomUUID === 'function') 
+            ? crypto.randomUUID() 
+            : Math.random().toString(36).substring(2, 15);
+        const totalSize = data.byteLength;
+        const chunkSize = 256 * 1024; // 256KB 청크 단위
+        let offset = 0;
+
+        // 업로드 시작 알림
+        socketClient.emit('upload_file_start', { uploadId, filename, totalSize, dir });
+
+        // 서버의 ACK를 기다려 순차적으로 전송 (안정성 확보)
+        const sendNextChunk = () => {
+            if (offset < totalSize) {
+                const length = Math.min(chunkSize, totalSize - offset);
+                const chunk = data.slice(offset, offset + length);
+                
+                socketClient.emit('upload_file_chunk', { uploadId, data: chunk });
+                offset += length;
+
+                if (onProgress) {
+                    const percent = Math.round((offset / totalSize) * 100);
+                    onProgress(percent, uploadId, filename);
+                }
+            } else {
+                // 모든 청크 전송 완료
+                socketClient.emit('upload_file_end', { uploadId });
+                // 리스너 해제
+                socketClient.off('upload_file_ack', ackHandler);
+            }
+        };
+
+        const ackHandler = (payload) => {
+            if (payload.uploadId === uploadId) {
+                sendNextChunk();
+            }
+        };
+
+        socketClient.on('upload_file_ack', ackHandler);
+
+        // 첫 번째 청크 전송 시작
+        sendNextChunk();
     }
 
     async getFileContent(path) {

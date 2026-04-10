@@ -96,7 +96,19 @@ export class MarkdownViewer extends SplitViewer {
         this.container.classList.remove('hidden');
 
         // --- 4. 콘텐츠 삽입 ---
-        if (this.mdRawContent) this.mdRawContent.textContent = content;
+        if (this.mdRawContent) {
+            let displaySource = content;
+            // 뷰어 전용: 이미지 데이터(Base64)를 참조 위치 바로 뒤로 이동
+            if (window.reorderMarkdownImages) {
+                displaySource = window.reorderMarkdownImages(content);
+            }
+
+            if (window.wrapBase64) {
+                this.mdRawContent.innerHTML = window.wrapBase64(displaySource);
+            } else {
+                this.mdRawContent.textContent = displaySource;
+            }
+        }
         if (this.mdRenderedContent) this.mdRenderedContent.innerHTML = marked.parse(content);
         
         // --- 5. 후처리 (구문 강조 및 복사/렌더 버튼) ---

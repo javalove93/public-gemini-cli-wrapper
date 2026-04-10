@@ -29,18 +29,26 @@ check_and_add_setting() {
     local setting_value="$2"
     local description="$3"
 
-    # 설정 키워드가 파일에 존재하는지 확인 (주석 제외)
+    # 1. 이미 정확한 설정값이 존재하는지 확인 (공백/따옴표 차이 고려하여 비교)
+    # 팁: grep -F는 문자열 그대로 검색함
+    if grep -q -F "$setting_value" "$TMUX_CONF"; then
+        # 정확히 일치하는 설정이 있으면 침묵 (이미 최적화됨)
+        return 0
+    fi
+
+    # 2. 설정 키워드는 존재하지만 값이 다른 경우 (주석 제외)
     if grep -q -E "^\\s*set(-option)?\\s+.*${setting_key}" "$TMUX_CONF"; then
-        echo "⚠️  [WARNING] '${setting_key}' is already configured in your .tmux.conf."
+        echo "⚠️  [WARNING] '${setting_key}' is already configured in your .tmux.conf with a different value."
         echo "   -> Required for ${description}: '${setting_value}'"
         echo "   -> Please ensure your configuration does not conflict with the required value."
         
-        # [Performance Fix] 만약 status-interval이 너무 짧거나 status-right에 무거운 스크립트가 있다면 덮어쓰기 제안
+        # [Performance Fix] 만약 status-interval이 너무 짧다면 덮어쓰기
         if [[ "$setting_key" == "status-interval" ]]; then
             echo "[FIX] Overriding 'status-interval' to 60s for performance."
             sed -i "s/^\\s*set.*status-interval.*/set -g status-interval 60/" "$TMUX_CONF"
         fi
     else
+        # 3. 아예 없는 설정이면 추가
         echo "[ADD] Adding '${setting_key}' for ${description}."
         echo "$setting_value" >> "$TMUX_CONF"
     fi

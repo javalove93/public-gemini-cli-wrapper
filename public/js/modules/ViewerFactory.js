@@ -14,7 +14,12 @@ export class PlainTextViewer {
         this.markdownContainer.classList.add('hidden'); 
         this.textContainer.classList.remove('hidden'); 
         if (this.textContent) {
-            this.textContent.textContent = content;
+            // HTML Tagging을 위해 innerHTML 사용 (wrapBase64 내부에서 escape 처리됨)
+            if (window.wrapBase64) {
+                this.textContent.innerHTML = window.wrapBase64(content);
+            } else {
+                this.textContent.textContent = content;
+            }
         }
     }
 }

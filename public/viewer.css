@@ -127,6 +127,12 @@ code {
     border-color: #888;
 }
 
+.copy-btn.copied {
+    background: #2e7d32;
+    color: #fff;
+    border-color: #4caf50;
+}
+
 /* Markdown Rendering Style */
 .markdown-body {
     color: #e1e4e8;
@@ -360,3 +366,131 @@ code {
     color: #4fc1ff;
     border-color: #569cd6;
 }
+
+/* Base64 Folding Style (A안: 가상 접기) */
+.base64-fold {
+    display: inline-block;
+    max-width: 400px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+    background: #333;
+    color: #ce9178;
+    cursor: pointer;
+    border: 1px dashed #555;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-family: 'Consolas', monospace;
+    transition: max-width 0.2s ease;
+    user-select: all; /* 복사는 가능하게 함 */
+}
+
+.base64-fold:hover {
+    background: #444;
+    border-color: #777;
+    color: #fff;
+}
+
+/* 클릭 시 펼쳐지는 스타일 */
+.base64-fold.expanded {
+    max-width: none;
+    white-space: pre-wrap;
+    word-break: break-all;
+    background: #1e1e1e;
+    border: 1px solid #0e639c;
+    display: inline;
+}
+
+.base64-fold::after {
+    content: " [Click to expand]";
+    font-size: 0.8em;
+    color: #888;
+    font-style: italic;
+}
+
+.base64-fold.expanded::after {
+    content: " [Click to collapse]";
+}
+
+/* 소스 창 내 작은 썸네일 프리뷰 */
+.base64-mini-preview {
+    width: 20px;
+    height: 20px;
+    object-fit: cover;
+    border-radius: 2px;
+    vertical-align: middle;
+    margin-right: 6px;
+    border: 1px solid #555;
+    cursor: pointer;
+    background: #000;
+}
+
+.base64-mini-preview:hover {
+    transform: scale(3);
+    transform-origin: left center;
+    z-index: 10;
+    position: relative;
+    border-color: #0e639c;
+}
+
+/* --- Print Styles --- */
+@media print {
+    /* 1. 숨길 요소들 */
+    #viewer-header,
+    .pane.left,
+    .pane-header,
+    .copy-btn,
+    #swap-panes-btn,
+    .modal,
+    .btn-new-tab {
+        display: none !important;
+    }
+
+    /* 2. 전체 레이아웃 조정 */
+    body, #main-container, .full-view, .split-view {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        height: auto !important;
+        overflow: visible !important;
+        display: block !important;
+    }
+
+    .pane.right, .full-view {
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: none !important;
+        overflow: visible !important;
+    }
+
+    /* 3. 마크다운 내용 인쇄 최적화 */
+    .markdown-body {
+        color: #000000 !important;
+        background-color: #ffffff !important;
+    }
+
+    .markdown-body h1, .markdown-body h2, .markdown-body h3 {
+        color: #000000 !important;
+        border-bottom: 1px solid #ddd !important;
+    }
+
+    .markdown-body code {
+        background-color: #f5f5f5 !important;
+        color: #d14 !important;
+        border: 1px solid #ddd !important;
+    }
+
+    .markdown-body pre {
+        background-color: #f8f8f8 !important;
+        border: 1px solid #ddd !important;
+        page-break-inside: avoid;
+    }
+
+    /* 4. Mermaid 등 이미지 크기 조정 */
+    img, svg {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+}
+/* -------------------- */

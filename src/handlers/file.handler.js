@@ -72,6 +72,28 @@ function registerFileApiRoutes(app) {
         }
     });
 
+    const express = require('express');
+    // API: 파일 내용 저장 (Edit 기능 지원)
+    app.post('/api/files/save', express.json({ limit: '50mb' }), (req, res) => {
+        try {
+            const { path: filePath, content } = req.body;
+            if (!filePath) {
+                return res.status(400).json({ error: 'File path is required' });
+            }
+
+            const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
+
+            // 파일에 쓰기 (UTF-8)
+            fs.writeFileSync(absolutePath, content, 'utf8');
+            console.log(`[FILE] File saved via API: ${absolutePath}`);
+            
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Error saving file:', error);
+            res.status(500).json({ error: 'Failed to save file: ' + error.message });
+        }
+    });
+
     // API: 현재 디렉토리의 최근 저장된 이미지 5개 목록 조회
     app.get('/api/latest-images', (req, res) => {
         try {
@@ -139,8 +161,10 @@ function registerFileHandlers(socket, io) {
     let fileWatcher = null;
 
     // 뷰어를 위한 단일 파일 실시간 감지
+    let fileWatchTimeout = null;
     socket.on('watch_file', (filePath) => {
         if (fileWatcher) fileWatcher.close();
+        if (fileWatchTimeout) clearTimeout(fileWatchTimeout);
         
         try {
             const absPath = path.resolve(process.cwd(), filePath);
@@ -149,7 +173,11 @@ function registerFileHandlers(socket, io) {
             // 파일 변경 시 (저장 등) 뷰어에 변경 알림 전송
             fileWatcher = fs.watch(absPath, (eventType) => {
                 if (eventType === 'change') {
-                    socket.emit('file_changed', { path: filePath });
+                    if (fileWatchTimeout) clearTimeout(fileWatchTimeout);
+                    fileWatchTimeout = setTimeout(() => {
+                        socket.emit('file_changed', { path: filePath });
+                        fileWatchTimeout = null;
+                    }, 300);
                 }
             });
         } catch (err) {
@@ -159,9 +187,68 @@ function registerFileHandlers(socket, io) {
 
     socket.on('disconnect', () => {
         if (fileWatcher) fileWatcher.close();
+        if (fileWatchTimeout) clearTimeout(fileWatchTimeout);
     });
 
-    // upload_image 핸들러
+    // --- 청크 기반 업로드 관리 ---
+    const activeUploads = new Map(); // uploadId -> { chunks, filename, dir, totalSize, receivedSize }
+
+    socket.on('upload_file_start', (payload) => {
+        const { uploadId, filename, totalSize, dir } = payload;
+        console.log(`[FILE] Chunk upload started: ${filename} (${totalSize} bytes), ID: ${uploadId}`);
+        activeUploads.set(uploadId, {
+            chunks: [],
+            filename,
+            dir,
+            totalSize,
+            receivedSize: 0
+        });
+    });
+
+    socket.on('upload_file_chunk', (payload) => {
+        const { uploadId, data } = payload;
+        const upload = activeUploads.get(uploadId);
+        if (!upload) return;
+
+        const chunkBuffer = Buffer.from(data);
+        upload.chunks.push(chunkBuffer);
+        upload.receivedSize += chunkBuffer.length;
+
+        // 클라이언트에게 ACK 전송 (다음 청크 요청 및 진행률 확인용)
+        socket.emit('upload_file_ack', { 
+            uploadId, 
+            receivedSize: upload.receivedSize,
+            totalSize: upload.totalSize
+        });
+    });
+
+    socket.on('upload_file_end', (payload) => {
+        const { uploadId } = payload;
+        const upload = activeUploads.get(uploadId);
+        if (!upload) return;
+
+        try {
+            const { filename, dir, chunks } = upload;
+            const targetDir = dir ? path.resolve(process.cwd(), dir) : process.cwd();
+            const absolutePath = path.join(targetDir, filename);
+            
+            const finalBuffer = Buffer.concat(chunks);
+            fs.writeFileSync(absolutePath, finalBuffer);
+            
+            console.log(`[FILE] Chunk upload complete: ${absolutePath}`);
+            activeUploads.delete(uploadId);
+            
+            // 모든 클라이언트에 업로드 완료 알림 (탐색기 갱신용)
+            io.emit('file_uploaded', { dir: dir || '', filename });
+            socket.emit('upload_success', { uploadId, filename });
+        } catch (error) {
+            console.error("File upload save error:", error);
+            socket.emit('error', 'Failed to save uploaded file.');
+            activeUploads.delete(uploadId);
+        }
+    });
+
+    // upload_image 핸들러 (기존 유지)
     socket.on('upload_image', (payload) => {
         console.log('[DEBUG] Received upload_image event. Payload ext:', payload.ext, 'dir:', payload.dir);
         try {
@@ -217,21 +304,41 @@ function registerFileHandlers(socket, io) {
     // rename_file 핸들러
     socket.on('rename_file', (payload) => {
         try {
+            if (!payload.oldPath) {
+                return socket.emit('error', 'oldPath is required.');
+            }
+
             const oldPath = path.resolve(process.cwd(), payload.oldPath);
-            const newPath = path.resolve(process.cwd(), payload.newPath);
+            let newPath;
+
+            if (payload.newPath) {
+                newPath = path.resolve(process.cwd(), payload.newPath);
+            } else if (payload.newName) {
+                // If only newName is provided, place it in the same directory as oldPath
+                const dir = path.dirname(oldPath);
+                newPath = path.join(dir, payload.newName);
+            } else {
+                return socket.emit('error', 'newPath or newName is required.');
+            }
+
             fs.renameSync(oldPath, newPath);
             console.log(`[FILE] Renamed: ${oldPath} -> ${newPath}`);
-            socket.emit('file_renamed', { oldPath: payload.oldPath, newPath: payload.newPath, success: true });
+            socket.emit('file_renamed', { oldPath: payload.oldPath, newPath: newPath, success: true });
         } catch (error) {
             console.error('Error renaming file:', error);
-            socket.emit('error', 'Failed to rename file.');
+            socket.emit('error', 'Failed to rename file: ' + error.message);
         }
     });
 
     // delete_file 핸들러
     socket.on('delete_file', (payload) => {
         try {
-            const absolutePath = path.resolve(process.cwd(), payload.path);
+            const targetPath = payload.path || payload.filepath;
+            if (!targetPath || typeof targetPath !== 'string') {
+                console.error('[FILE] Delete failed: Invalid path provided', payload);
+                return socket.emit('error', 'Invalid path for deletion.');
+            }
+            const absolutePath = path.resolve(process.cwd(), targetPath);
             if (fs.existsSync(absolutePath)) {
                 const stat = fs.statSync(absolutePath);
                 if (stat.isDirectory()) {
@@ -240,7 +347,7 @@ function registerFileHandlers(socket, io) {
                     fs.unlinkSync(absolutePath);
                 }
                 console.log(`[FILE] Deleted: ${absolutePath}`);
-                socket.emit('file_deleted', { path: payload.path, success: true });
+                socket.emit('file_deleted', { path: targetPath, success: true });
             }
         } catch (error) {
             console.error('Error deleting file/directory:', error);

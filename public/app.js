@@ -99,6 +99,7 @@ const clipboardHistoryList = document.getElementById('clipboard-history');
 
 // 파일 브라우저 (Open) 관련 DOM
 const btnOpenViewerMain = document.getElementById('btn-open-viewer-main');
+const btnFileTreeStyle = document.getElementById('btn-file-tree-style');
 const fileModalMain = document.getElementById('file-modal-main');
 const modalCloseBtnMain = document.getElementById('modal-close-btn-main');
 const modalCurrentDirMain = document.getElementById('modal-current-dir-main');
@@ -259,6 +260,29 @@ if(btnOpenViewerMain) {
         currentModalDirMain = fileManager.currentDir || '/';
         fetchModalFilesMain();
         fileModalMain.style.display = 'flex';
+    };
+}
+
+if(btnFileTreeStyle) {
+    // 0: Default(Alpha), 1: Mid-Truncate(Alpha), 2: Recent Date
+    const modeIcons = ['Aa', 'A..z', '🕒'];
+    const modeTitles = ['Style: Default (Alphabetical)', 'Style: Mid-Truncate (Alphabetical)', 'Style: Recent Date'];
+    
+    // 초기 로드 시 버튼 텍스트 설정
+    let initialMode = parseInt(getUiSetting('GCW_UI_FILE_TREE_STYLE') || '0', 10);
+    btnFileTreeStyle.textContent = modeIcons[initialMode] || 'Aa';
+    btnFileTreeStyle.title = modeTitles[initialMode] || modeTitles[0];
+
+    btnFileTreeStyle.onclick = () => {
+        let currentMode = parseInt(getUiSetting('GCW_UI_FILE_TREE_STYLE') || '0', 10);
+        let nextMode = (currentMode + 1) % 3;
+        saveUiSetting('GCW_UI_FILE_TREE_STYLE', nextMode);
+        
+        btnFileTreeStyle.textContent = modeIcons[nextMode];
+        btnFileTreeStyle.title = modeTitles[nextMode];
+        
+        // 탐색기 새로고침
+        loadFileTree(fileManager.currentDir);
     };
 }
 
@@ -440,21 +464,21 @@ const darkThemeColors = {
     foreground: '#ffffff',
     cursor: '#ffffff',
     black: '#000000',
-    red: '#cd3131',
-    green: '#0dbc79',
-    yellow: '#e5e510',
-    blue: '#2472c8',
-    magenta: '#bc3fbc',
-    cyan: '#11a8cd',
-    white: '#e5e5e5',
-    brightBlack: '#666666',
+    red: '#f14c4c',
+    green: '#23d18b',
+    yellow: '#f5f543',
+    blue: '#3b8eea',
+    magenta: '#d670d6',
+    cyan: '#29b8db',
+    white: '#ffffff',
+    brightBlack: '#a5a5a5',
     brightRed: '#f14c4c',
     brightGreen: '#23d18b',
     brightYellow: '#f5f543',
     brightBlue: '#3b8eea',
     brightMagenta: '#d670d6',
     brightCyan: '#29b8db',
-    brightWhite: '#e5e5e5'
+    brightWhite: '#ffffff'
 };
 
 const applyTheme = (theme) => {
@@ -648,6 +672,26 @@ async function loadFileTree(dir = '') {
         // 썸네일 불러오기 (현재 디렉토리 기준)
         loadLatestThumbnails(dir);
 
+        // 스타일 모드 읽기
+        let fileTreeStyleMode = parseInt(getUiSetting('GCW_UI_FILE_TREE_STYLE') || '0', 10);
+        let sortedFiles = [...files];
+
+        if (fileTreeStyleMode === 2) {
+            // 최신날짜 순 정렬 (디렉토리 무시하고 섞거나 유지. 보통은 디렉토리 우선)
+            sortedFiles.sort((a, b) => {
+                if (a.isDirectory && !b.isDirectory) return -1;
+                if (!a.isDirectory && b.isDirectory) return 1;
+                return (b.mtime || 0) - (a.mtime || 0);
+            });
+        } else {
+            // 알파벳 순 정렬 (기본값)
+            sortedFiles.sort((a, b) => {
+                if (a.isDirectory && !b.isDirectory) return -1;
+                if (!a.isDirectory && b.isDirectory) return 1;
+                return a.name.localeCompare(b.name);
+            });
+        }
+
         // 하위 폴더인 경우 상위로 돌아가는(..) 항목 추가
         if (dir && dir !== '.') {
             const upDiv = document.createElement('div');
@@ -662,11 +706,22 @@ async function loadFileTree(dir = '') {
             fileTree.appendChild(upDiv);
         }
 
-        files.forEach(f => {
+        sortedFiles.forEach(f => {
             const div = document.createElement('div');
             div.className = `file-item ${f.isDirectory ? 'dir' : 'file'}`;
-            div.textContent = (f.isDirectory ? '📁 ' : '📄 ') + f.name;
-            div.title = f.path;
+            
+            let displayName = f.name;
+            // Mode 1: 중간 자르기 (Mid-Truncate)
+            if (fileTreeStyleMode === 1 && displayName.length > 25) {
+                const startLen = 12;
+                const endLen = 10;
+                if (displayName.length > startLen + endLen) {
+                    displayName = displayName.substring(0, startLen) + '...' + displayName.substring(displayName.length - endLen);
+                }
+            }
+            
+            div.textContent = (f.isDirectory ? '📁 ' : '📄 ') + displayName;
+            div.title = f.name;
             
             // 폴더인 경우 한 번 클릭 시 해당 디렉토리로 이동
             if (f.isDirectory) {
@@ -765,8 +820,7 @@ function initTerminal() {
         fontSize: savedFontSize,
         theme: optTheme.value === 'light' ? lightThemeColors : darkThemeColors,
         allowProposedApi: true, // OSC 52 (Clipboard) 지원 등 고급 API 허용
-        macOptionClickForcesSelection: true, // macOS에서 Option(Alt) 키를 눌러 tmux 마우스 모드를 우회하여 텍스트 선택 허용
-        minimumContrastRatio: 4.5 // 대비를 자동으로 조절하여 배경색 위에서 글씨가 잘 보이게 함
+        macOptionClickForcesSelection: true // macOS에서 Option(Alt) 키를 눌러 tmux 마우스 모드를 우회하여 텍스트 선택 허용
     });
 
     // 폰트 변경 이벤트
@@ -1265,16 +1319,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnReconnect = document.getElementById('btn-reconnect');
     if (btnReconnect) {
         btnReconnect.addEventListener('click', () => {
-            // 현재 세션 이름으로 다시 attach 시도 (-d 옵션에 의해 제어권을 가져옴)
             const currentSession = tmuxManager.currentSession;
             if (currentSession) {
-                // UI 오버레이 숨김
+                // UI 오버레이 즉시 숨김
                 document.getElementById('disconnect-overlay').style.display = 'none';
+                
                 if (term) {
                     term.clear();
                     term.write('\r\n\x1b[33mReconnecting to session...\x1b[0m\r\n');
                 }
-                // attach 이벤트 발생시켜 재접속
+                
+                // attach 이벤트 발생시켜 재접속 (-d 옵션으로 강제 제어권 탈환)
                 socket.emit('attach', currentSession);
             } else {
                 // 세션 이름이 없는 경우 페이지 새로고침
@@ -1459,6 +1514,48 @@ window.addEventListener('paste', (e) => {
     console.log('[DEBUG] No image file found in clipboard data');
 }, true); // useCapture를 true로 설정하여 xterm.js보다 먼저 이벤트를 가로챔
 
+const uploadStatusContainer = document.getElementById('upload-status-container');
+
+/**
+ * 업로드 진행 상태를 UI에 표시하고 업데이트합니다.
+ */
+function updateUploadUI(percent, uploadId, filename) {
+    let item = document.getElementById(`upload-${uploadId}`);
+    
+    if (!item) {
+        // 새 항목 생성
+        uploadStatusContainer.classList.remove('hidden');
+        item = document.createElement('div');
+        item.id = `upload-${uploadId}`;
+        item.className = 'upload-item';
+        item.innerHTML = `
+            <div class="upload-info">
+                <span class="upload-filename" title="${filename}">${filename}</span>
+                <span class="upload-percent">${percent}%</span>
+            </div>
+            <div class="upload-progress-bg">
+                <div class="upload-progress-fill" style="width: ${percent}%"></div>
+            </div>
+        `;
+        uploadStatusContainer.appendChild(item);
+    } else {
+        // 기존 항목 업데이트
+        item.querySelector('.upload-percent').textContent = `${percent}%`;
+        item.querySelector('.upload-progress-fill').style.width = `${percent}%`;
+        
+        if (percent >= 100) {
+            item.classList.add('complete');
+            // 3초 후 항목 삭제 및 컨테이너 체크
+            setTimeout(() => {
+                item.remove();
+                if (uploadStatusContainer.querySelectorAll('.upload-item').length === 0) {
+                    uploadStatusContainer.classList.add('hidden');
+                }
+            }, 3000);
+        }
+    }
+}
+
 // 이미지 업로드 완료 수신
 socket.on('image_uploaded', (info) => {
     // 서버가 전달해준 절대 경로를 터미널에 입력 (공백 포함하여 바로 다음 명령어 입력 가능하게)
@@ -1489,9 +1586,9 @@ if (navDropdown) {
 }
 
 function addThumbnail(info) {
-    recentThumbnails.push(info);
+    recentThumbnails.unshift(info);
     if (recentThumbnails.length > 5) {
-        recentThumbnails.shift();
+        recentThumbnails.pop();
     }
     renderThumbnails();
 }
@@ -1499,7 +1596,7 @@ function addThumbnail(info) {
 function renderThumbnails() {
     if (!recentImagesDropdown || !recentImagePreview) return;
     recentImagesDropdown.innerHTML = '';
-    
+
     if (recentThumbnails.length === 0) {
         const opt = document.createElement('option');
         opt.value = '';
@@ -1508,13 +1605,12 @@ function renderThumbnails() {
         recentImagePreview.style.display = 'none';
         return;
     }
-    
-    // 최신 항목이 맨 위로 오도록 배열을 뒤집어서 렌더링
-    const reversed = [...recentThumbnails].reverse();
-    reversed.forEach((info, idx) => {
+
+    // 배열이 이미 최신순(Recent First)으로 유지되므로 그대로 렌더링
+    recentThumbnails.forEach((info, idx) => {
         const opt = document.createElement('option');
         opt.value = info.filepath;
-        
+
         // 파일명만 추출하여 표시 (예: image.png)
         const filename = info.filepath.split('/').pop() || info.filepath;
         opt.textContent = `[${idx+1}] ${filename}`;
@@ -1653,7 +1749,10 @@ sidebar.addEventListener('drop', (e) => {
             
             const reader = new FileReader();
             reader.onload = function(event) {
-                fileManager.uploadFile(file.name, event.target.result);
+                // 청크 방식 업로드 호출 및 UI 콜백 전달
+                fileManager.uploadFile(file.name, event.target.result, fileManager.currentDir, (percent, uploadId, filename) => {
+                    updateUploadUI(percent, uploadId, filename);
+                });
             };
             reader.readAsArrayBuffer(file);
         }

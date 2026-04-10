@@ -58,8 +58,10 @@ class TerminalHandler {
     _cleanupPty() {
         if (this.ptyProcess) {
             try {
+                // 의도적인 종료 시에는 exit 이벤트를 클라이언트에 보내지 않음
+                this.ptyProcess.removeAllListeners('exit');
                 this.ptyProcess.kill();
-                console.log('[TERM] Terminated existing PTY process to switch session.');
+                console.log('[TERM] Terminated existing PTY process intentionally.');
             } catch (e) {
                 console.error('[TERM] Error killing previous PTY:', e);
             }
@@ -130,6 +132,12 @@ class TerminalHandler {
         let command = 'tmux';
         let args = ['attach-session', '-d', '-t', sessionName];
 
+        // 터미널 색상 및 다크 테마 감지를 돕기 위한 환경변수
+        const ptyEnv = {
+            ...customEnv,
+            COLORTERM: 'truecolor'
+        };
+
         // macOS 환경(darwin) 우회 코드 복구
         if (os.platform() === 'darwin') {
             const shell = process.env.SHELL || '/bin/sh';
@@ -142,17 +150,33 @@ class TerminalHandler {
             cols: 80,
             rows: 24,
             cwd: process.cwd(),
-            env: customEnv
+            env: ptyEnv
         });
 
         this.currentSessionName = sessionName;
         this.socket.join(`session_${sessionName}`);
 
+        // 터미널 출력 데이터 스로틀링 (25ms 버퍼링)
+        let outputBuffer = '';
+        let flushTimeout = null;
+
+        const flushBuffer = () => {
+            if (outputBuffer.length > 0) {
+                this.socket.emit('output', outputBuffer);
+                outputBuffer = '';
+            }
+            flushTimeout = null;
+        };
+
         this.ptyProcess.onData((data) => {
-            this.socket.emit('output', data);
+            outputBuffer += data;
+            if (!flushTimeout) {
+                flushTimeout = setTimeout(flushBuffer, 25);
+            }
         });
 
         this.ptyProcess.onExit(() => {
+            if (flushTimeout) clearTimeout(flushTimeout);
             this.socket.emit('exit');
             this.ptyProcess = null;
         });
