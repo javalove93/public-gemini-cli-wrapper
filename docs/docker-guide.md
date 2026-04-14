@@ -35,8 +35,9 @@ cd gemini-cli-wrapper
 ./run-docker.sh
 
 # 워크스페이스 경로 및 포트 지정 실행
-# HOST_DIR: 호스트의 실제 프로젝트들이 위치한 최상위 경로
-HOST_DIR=/home/jerryj/git PORT=8080 ./run-docker.sh
+# HOST_DIR: 호스트의 실제 프로젝트들이 위치한 최상위 경로 (기본값: /opt/jerrydisk/git)
+# HOST_DATA_DIR: 대화 기록 및 설정(.gemini)과 패키지 캐시(.npm)가 저장될 경로 (기본값: /tmp/gcw-docker)
+HOST_DIR=/home/jerryj/git HOST_DATA_DIR=$PWD/data PORT=8080 ./run-docker.sh
 
 # 디버그 모드 (실시간 로그 확인 및 종료 시 자동 삭제)
 ./run-docker.sh --debug
@@ -48,11 +49,12 @@ HOST_DIR=/home/jerryj/git PORT=8080 ./run-docker.sh
 호스트의 다음 환경 변수들이 컨테이너 내부로 주입됩니다.
 *   `GEMINI_API_KEY`: API 호출 인증용
 *   `PORT`: 호스트에서 접속할 포트 번호 (기본값 5001)
-*   `HOST_DIR`: 컨테이너 내부 `/host`와 매핑될 호스트의 프로젝트 루트 디렉토리입니다. 사용자의 환경에 맞춰 반드시 지정해 주어야 합니다.
+*   `HOST_DIR`: 컨테이너 내부 `/host`와 매핑될 호스트의 프로젝트 루트 디렉토리입니다. 기본값은 `/opt/jerrydisk/git`이며, 사용자의 환경에 맞춰 반드시 지정해 주어야 합니다.
+*   `HOST_DATA_DIR`: 대화 기록 및 설정 파일(`.gemini`)과 패키지 캐시(`.npm`)가 영구 저장될 호스트의 디렉토리 경로입니다. 기본값은 `/tmp/gcw-docker`입니다.
 
 ### 볼륨 마운트 및 영속화
 *   **설정 파일**: 호스트의 `.gcw.conf.docker` -> 컨테이너의 `/app/gemini-cli-wrapper/.gcw.conf`
-*   **데이터 영속화**: `HOST_GEMINI` 변수로 지정된 경로(기본 `/tmp`)에 `.gemini` 및 `.npm` 캐시가 저장됩니다.
+*   **데이터 영속화**: `HOST_DATA_DIR` 변수로 지정된 경로에 `.gemini` 및 `.npm` 폴더가 생성되어 데이터가 보존됩니다.
 *   **워크스페이스**: `HOST_DIR` 환경 변수로 지정된 호스트의 디렉토리가 컨테이너 내부의 `/host` 경로로 마운트됩니다.
 
 ### 사용자 및 권한

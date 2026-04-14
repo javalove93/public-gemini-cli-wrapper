@@ -7,10 +7,12 @@ HOST_DIR=${HOST_DIR:-"/opt/jerrydisk/git"}
 
 # 포트 및 호스트 데이터 경로 설정
 APP_PORT=${PORT:-5001}
-HOST_DATA_DIR=${HOST_GEMINI:-"/tmp/gcw-docker"}
+# HOST_DATA_DIR: .gemini와 .npm 데이터가 영구 저장될 호스트 경로
+HOST_DATA_DIR=${HOST_DATA_DIR:-"/tmp/gcw-docker"}
 
 # 마운트할 디렉토리 준비
 mkdir -p "$HOST_DATA_DIR/.gemini" "$HOST_DATA_DIR/.npm"
+
 
 DEBUG_MODE=false
 if [[ "$1" == "--debug" ]]; then
