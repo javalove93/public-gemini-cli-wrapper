@@ -1,3 +1,4 @@
+GCW_INSTANCE=DOCKER
 PROJECT_GCW=/app/gemini-cli-wrapper gemini-cli-wrapper
 PROJECT_HOST=/host host
 
