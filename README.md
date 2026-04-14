@@ -48,6 +48,9 @@ npm install
 ./run.sh
 ```
 
+### 🐳 Docker Support (Alternative)
+Windows와 같이 Tmux 환경을 직접 구축하기 어려운 경우 Docker를 사용하여 실행할 수 있습니다. 자세한 내용은 **[Docker Guide](docs/docker-guide.md)**를 참고하세요.
+
 이제 브라우저에서 `http://localhost:5001`에 접속하여 Gemini CLI를 웹에서 바로 사용해 보세요!
 
 ---
