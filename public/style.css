@@ -874,3 +874,129 @@ body.light-theme .shortcut-btn {
     border-color: #ccc;
 }
 
+
+/* Tmux Management Modal */
+#manage-window-list .manage-item {
+    padding: 10px 15px;
+    border-bottom: 1px solid #3c3c3c;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#manage-window-list .manage-item:hover {
+    background-color: #2d2d2d;
+}
+
+#manage-window-list .manage-item.active {
+    background-color: #37373d;
+    border-left: 3px solid #007acc;
+}
+
+.manage-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.manage-item-name {
+    color: #e0e0e0;
+    font-weight: bold;
+}
+
+.manage-item-meta {
+    font-size: 11px;
+    color: #888;
+}
+
+.btn-kill-small {
+    background: #ff4d4d22;
+    color: #ff4d4d;
+    border: 1px solid #ff4d4d44;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.btn-kill-small:hover {
+    background: #ff4d4d;
+    color: white;
+}
+
+/* Visual Pane Map */
+.pane-block {
+    position: absolute;
+    border: 2px solid #569cd6;
+    background-color: #569cd622;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    transition: all 0.2s;
+    cursor: default;
+    overflow: hidden;
+    padding: 5px;
+}
+
+.pane-block.active {
+    background-color: #569cd644;
+    border-color: #4fc1ff;
+    z-index: 2;
+}
+
+.pane-block-index {
+    font-size: 16px;
+    font-weight: bold;
+    color: #4fc1ff;
+}
+
+.pane-block-cmd {
+    font-size: 11px;
+    color: #ccc;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.pane-block-actions {
+    margin-top: 5px;
+    display: flex;
+    gap: 5px;
+}
+
+/* Tab UI Improvements */
+.tab-item {
+    position: relative;
+    padding-right: 25px !important;
+}
+
+.btn-close-tab {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    line-height: 12px;
+    text-align: center;
+    font-size: 10px;
+    color: #888;
+    border-radius: 2px;
+    cursor: pointer;
+    display: none;
+}
+
+.tab-item:hover .btn-close-tab {
+    display: block;
+}
+
+.btn-close-tab:hover {
+    background-color: #ff4d4d;
+    color: white;
+}

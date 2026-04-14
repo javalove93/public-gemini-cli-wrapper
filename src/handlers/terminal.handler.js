@@ -307,6 +307,74 @@ class TerminalHandler {
     }
 
     /**
+     * 특정 Tmux 윈도우 종료
+     */
+    handleKillWindow(index) {
+        if (!this.currentSessionName) return;
+
+        console.log(`[TERM] Killing window ${index} in session ${this.currentSessionName}`);
+        exec(`tmux kill-window -t "${this.currentSessionName}:${index}"`, (error) => {
+            if (error) {
+                console.error('[TERM] Kill window error:', error);
+                this.socket.emit('error', 'Failed to kill window');
+            } else {
+                this.handleListWindows();
+            }
+        });
+    }
+
+    /**
+     * 현재 윈도우의 패널 목록 상세 조회 (좌표 및 크기 포함)
+     */
+    handleListPanes() {
+        if (!this.currentSessionName) return;
+
+        console.log(`[TERM] Listing detailed panes for session: ${this.currentSessionName}`);
+        // 포맷: index:left:top:width:height:active:command:path
+        const format = "#{pane_index}:#{pane_left}:#{pane_top}:#{pane_width}:#{pane_height}:#{pane_active}:#{pane_current_command}:#{pane_current_path}";
+        exec(`tmux list-panes -t "${this.currentSessionName}" -F "${format}"`, (error, stdout) => {
+            if (error) {
+                console.error('[TERM] List panes error:', error);
+                return;
+            }
+
+            const panes = stdout.trim().split('\n').filter(line => line).map(line => {
+                const [index, left, top, width, height, active, command, pwd] = line.split(':');
+                return {
+                    index: parseInt(index),
+                    left: parseInt(left),
+                    top: parseInt(top),
+                    width: parseInt(width),
+                    height: parseInt(height),
+                    active: active === '1',
+                    command: command,
+                    pwd: pwd
+                };
+            });
+
+            this.socket.emit('pane_list', panes);
+        });
+    }
+
+    /**
+     * 특정 Tmux 패널 종료
+     */
+    handleKillPane(index) {
+        if (!this.currentSessionName) return;
+
+        console.log(`[TERM] Killing pane ${index} in session ${this.currentSessionName}`);
+        // 세션명과 윈도우 인덱스(현재 활성 윈도우 기준)를 사용하여 패널 종료
+        exec(`tmux kill-pane -t "${this.currentSessionName}.${index}"`, (error) => {
+            if (error) {
+                console.error('[TERM] Kill pane error:', error);
+                this.socket.emit('error', 'Failed to kill pane');
+            } else {
+                this.handleListPanes();
+            }
+        });
+    }
+
+    /**
      * Tmux 세션에 붙은 모든 클라이언트 강제 종료 (Reset)
      */
     handleTmuxResetClients() {
@@ -342,6 +410,9 @@ class TerminalHandler {
         socket.on('rename_session', (payload) => handler.handleRenameSession(payload));
         socket.on('list_windows', () => handler.handleListWindows());
         socket.on('select_window', (index) => handler.handleSelectWindow(index));
+        socket.on('kill_window', (index) => handler.handleKillWindow(index));
+        socket.on('list_panes', () => handler.handleListPanes());
+        socket.on('kill_pane', (index) => handler.handleKillPane(index));
 
         // 연결 끊김 시 PTY 정리 로직 추가 (좀비 방지)
         socket.on('disconnect', () => {

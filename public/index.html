@@ -72,6 +72,7 @@
                     <button id="btn-font-plus" title="Increase Font Size" class="font-btn">+</button>
                     <span id="current-session-name"></span>
                     <button id="btn-rename-session" title="Rename Session" class="font-btn">✏️</button>
+                    <button id="btn-manage-tmux" title="Manage Tmux Windows/Panes" class="font-btn">🗂️</button>
                     <button id="btn-env-info" title="View Environment Variables" class="font-btn" style="display:none;">📄</button>
                     <button id="btn-split-h" title="Split Horizontal (가로 분리)" class="split-btn" style="display:none;">◫</button>
                     <button id="btn-split-v" title="Split Vertical (세로 분리)" class="split-btn" style="display:none;">⬒</button>
@@ -201,6 +202,33 @@
             <ul id="modal-file-list-main" style="list-style:none; margin:0; padding:0; overflow-y:auto; flex-grow:1; background-color:#1e1e1e;">
                 <!-- File list items will be injected here -->
             </ul>
+        </div>
+    </div>
+
+    <!-- Tmux 관리 모달 -->
+    <div id="tmux-management-modal" class="modal">
+        <div class="modal-content" style="background-color:#252526; width:90%; max-width:1000px; height:80vh; min-height:400px; display:flex; flex-direction:column; padding:0; border:1px solid #454545;">
+            <div class="modal-header" style="padding:15px; border-bottom:1px solid #454545; display:flex; justify-content:space-between; align-items:center; background-color:#2d2d2d; flex-shrink:0;">
+                <h3 style="margin:0; color:#ccc;">🗂️ Tmux Management</h3>
+                <button id="close-tmux-management" style="background:transparent; color:#ccc; font-size:24px; border:none; cursor:pointer;">&times;</button>
+            </div>
+            <div class="modal-body" style="display:flex; flex-grow:1; overflow:hidden; padding:20px; gap:20px; min-height: 0;">
+                <!-- 윈도우 목록 섹션 -->
+                <div style="flex: 1; display:flex; flex-direction:column; min-height:0;">
+                    <h4 style="color:#aaa; margin-top:0; flex-shrink:0;">Windows</h4>
+                    <ul id="manage-window-list" style="list-style:none; padding:0; margin:0; overflow-y:auto; flex-grow:1; border:1px solid #3c3c3c; border-radius:4px; background:#1e1e1e;"></ul>
+                </div>
+                <!-- 패널 레이아웃 맵 섹션 -->
+                <div style="flex: 2; display:flex; flex-direction:column; min-height:0;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-shrink:0;">
+                        <h4 style="color:#aaa; margin:0;">Pane Visual Layout (Active Window)</h4>
+                        <button id="btn-refresh-panes" style="background:#333; color:#ccc; border:1px solid #454545; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer;">🔄 Refresh Panes</button>
+                    </div>
+                    <div id="pane-visual-map-container" style="position:relative; flex-grow:1; background:#000; border:1px solid #454545; border-radius:4px; overflow:hidden;">
+                        <!-- Panes will be rendered here as absolute divs -->
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

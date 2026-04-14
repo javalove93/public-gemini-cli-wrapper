@@ -31,21 +31,33 @@ function getScreenshotsDir(dir) {
 function registerFileApiRoutes(app) {
     // API: 현재 작업 디렉토리의 파일 트리 조회 (간단한 버전)
     app.get('/api/files', (req, res) => {
-        const dir = req.query.dir ? path.resolve(process.cwd(), req.query.dir) : process.cwd();
+        const queryDir = req.query.dir || '';
+        const dir = path.isAbsolute(queryDir) ? queryDir : path.resolve(process.cwd(), queryDir);
 
         try {
             if (!fs.existsSync(dir)) {
                 return res.json([]);
             }
             const items = fs.readdirSync(dir, { withFileTypes: true });
-            const result = items.map(item => ({
-                name: item.name,
-                isDirectory: item.isDirectory(),
-                path: path.join(dir, item.name),
-                mtime: fs.statSync(path.join(dir, item.name)).mtimeMs
-            }));
+            const result = items.map(item => {
+                const fullPath = path.join(dir, item.name);
+                let mtime = 0;
+                try {
+                    // 심볼릭 링크나 권한 에러 방지
+                    mtime = fs.statSync(fullPath).mtimeMs;
+                } catch (e) {
+                    // 에러 발생 시 mtime을 0으로 설정하고 계속 진행
+                }
+                return {
+                    name: item.name,
+                    isDirectory: item.isDirectory(),
+                    path: fullPath,
+                    mtime: mtime
+                };
+            });
             res.json(result);
         } catch (err) {
+            console.error('[FILE] Error loading directory:', dir, err);
             res.status(500).json({ error: err.message });
         }
     });
@@ -131,7 +143,7 @@ function registerFileApiRoutes(app) {
         const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
 
         if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
-            res.sendFile(absolutePath);
+            res.sendFile(absolutePath, { root: '/' });
         } else {
             res.status(404).send('Image not found');
         }
@@ -145,7 +157,7 @@ function registerFileApiRoutes(app) {
         const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
         
         if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
-            res.download(absolutePath);
+            res.download(absolutePath, path.basename(absolutePath), { root: '/' });
         } else {
             res.status(404).send('File not found');
         }

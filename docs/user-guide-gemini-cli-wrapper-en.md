@@ -17,18 +17,23 @@ To use this wrapper, the following environment must be prepared on the remote se
 
 ## 2. Setup & Run
 
-### Step 1: Optimize Tmux Environment
-For a seamless terminal experience in your browser (mouse support, clipboard integration, 256 colors, and viewer command integration), configuring Tmux is essential. Use the automated setup script included in the project:
+### Step 1: Install Dependencies & Optimize Tmux Environment
+For a seamless terminal experience in your browser (mouse support, clipboard integration, 256 colors, and viewer command integration), installing Node.js dependencies and configuring Tmux is essential. Use the automated setup script included in the project:
 
 ```bash
 cd gemini-cli-wrapper
+
+# 1. Install required Node.js modules (including node-pty)
+npm install
+
+# 2. Initialize Tmux settings and plugins (Run once)
 ./setup-tmux.sh
 ```
 * **Features**: It adds missing essential options without overwriting your existing `~/.tmux.conf`. It also injects the terminal-based viewer trigger (`view <file>`) into your shell environment and automatically installs `tmux-resurrect` and `tmux-continuum` to back up and restore your sessions every 15 minutes.
 * **Application**: After running the script, it is highly recommended to completely restart the Tmux server by running `tmux kill-server`.
 
 ### Step 2: Start the Backend Server
-Run the included `run.sh` script to start the backend server. (On its first run, `npm install` will be executed automatically.)
+Run the included `run.sh` script to start the backend server.
 
 ```bash
 ./run.sh

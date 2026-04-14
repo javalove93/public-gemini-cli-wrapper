@@ -37,6 +37,12 @@ export class TmuxManager {
             this.onWindowListUpdated(windows);
         });
 
+        // Tmux 패널 목록 수신
+        socketClient.on('pane_list', (panes) => {
+            console.log(`[CORE] Received tmux pane list:`, panes);
+            this.onPaneListUpdated(panes);
+        });
+
         // 터미널 PTY 종료 수신
         socketClient.on('exit', () => {
             console.log('[CORE] PTY process exited.');
@@ -66,6 +72,13 @@ export class TmuxManager {
     }
 
     /**
+     * 외부(View)에서 패널 목록 업데이트 이벤트 구독용 콜백 오버라이드
+     */
+    onPaneListUpdated(panes) {
+        // UI 레이어에서 오버라이드하여 사용
+    }
+
+    /**
      * 현재 세션의 윈도우 목록 조회 요청
      */
     fetchWindows() {
@@ -79,6 +92,30 @@ export class TmuxManager {
     selectWindow(index) {
         if (!this.currentSession) return;
         socketClient.emit('select_window', index);
+    }
+
+    /**
+     * 특정 윈도우 종료 요청
+     */
+    killWindow(index) {
+        if (!this.currentSession) return;
+        socketClient.emit('kill_window', index);
+    }
+
+    /**
+     * 현재 활성 윈도우의 패널 목록 조회 요청
+     */
+    fetchPanes() {
+        if (!this.currentSession) return;
+        socketClient.emit('list_panes');
+    }
+
+    /**
+     * 특정 패널 종료 요청
+     */
+    killPane(index) {
+        if (!this.currentSession) return;
+        socketClient.emit('kill_pane', index);
     }
 
     /**
