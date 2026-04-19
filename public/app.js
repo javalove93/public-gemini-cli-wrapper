@@ -111,6 +111,39 @@ let currentModalDirMain = '';
 let currentFilesDataMain = [];
 let sortColMain = getUiSetting('GCW_UI_VIEWER_SORT_COL') || 'date';
 let sortDirMain = getUiSetting('GCW_UI_VIEWER_SORT_DIR') || 'desc';
+
+// --- Auto-Connect Stealth Mode State ---
+let isAutoConnectEnabled = localStorage.getItem('gcw_auto_connect') !== 'false';
+const connectionWrapper = document.getElementById('connection-wrapper');
+const autoConnectLabel = document.getElementById('auto-connect-label');
+
+function updateAutoConnectUI() {
+    if (!autoConnectLabel) return;
+    if (isAutoConnectEnabled) {
+        autoConnectLabel.textContent = 'Auto-ON';
+        autoConnectLabel.classList.remove('off');
+    } else {
+        autoConnectLabel.textContent = 'Auto-OFF';
+        autoConnectLabel.classList.add('off');
+    }
+}
+
+if (connectionWrapper) {
+    connectionWrapper.onclick = () => {
+        // 이미 연결이 끊긴 상태라면 기본 재연결 로직 수행 (아래 connectionStatus.onclick 참고)
+        if (connectionStatus.classList.contains('status-disconnected')) {
+            return;
+        }
+        
+        // 연결된 상태에서는 Auto-Connect ON/OFF 토글
+        isAutoConnectEnabled = !isAutoConnectEnabled;
+        localStorage.setItem('gcw_auto_connect', isAutoConnectEnabled);
+        updateAutoConnectUI();
+        console.log(`[DEBUG] Auto-Connect changed to: ${isAutoConnectEnabled}`);
+    };
+}
+// ----------------------------------------
+
 const getDirNameMain = (path) => {
     const parts = path.split('/');
     parts.pop();
@@ -1380,11 +1413,21 @@ socket.on('connect', () => {
     }
     
     // 이전에 사용 중이던 세션이 있다면 다시 연결 시도
+    // [전략 3+1] 자동 접속 방지 로직 도입
     if (tmuxManager.currentSession && mainLayout.style.display !== 'none') {
-        console.log('[DEBUG] Reattaching to last used session:', tmuxManager.currentSession);
-        tmuxManager.attachSession(tmuxManager.currentSession);
+        if (isAutoConnectEnabled && document.visibilityState === 'visible') {
+            console.log('[DEBUG] Auto-reattaching to last used session:', tmuxManager.currentSession);
+            tmuxManager.attachSession(tmuxManager.currentSession);
+        } else {
+            console.log('[DEBUG] Auto-attach skipped: Tab is hidden or Auto-Connect is OFF.');
+            // 자동 접속이 꺼져있거나 백그라운드인 경우, 세션 끊김 오버레이를 유지하여 사용자의 명시적 클릭 유도
+            tmuxManager.onSessionExited(); 
+        }
     }
 });
+
+// 초기 설정 로드 후 UI 반영
+updateAutoConnectUI();
 
 connectionStatus.onclick = () => {
     if (connectionStatus.classList.contains('status-disconnected')) {
@@ -1921,8 +1964,8 @@ async function initApp() {
         // 우선순위: URL 파라미터 > 서버 기본값
         const defaultSession = sessionFromUrl || sysInfo.defaultSession;
 
-        // 명시적인 세션 선택 요청(?select=true)이 없고, 세션 정보가 있으면 자동 접속 시도
-        if (defaultSession && !forceSelect) {
+        // 명시적인 세션 선택 요청(?select=true)이 없고, 세션 정보가 있으며, 자동 접속이 켜져 있을 때만 자동 접속 시도
+        if (defaultSession && !forceSelect && isAutoConnectEnabled) {
             // 현재 세션 목록 확인
             const sessRes = await fetch(getApiPath('/api/sessions'));
             const sessions = await sessRes.json();

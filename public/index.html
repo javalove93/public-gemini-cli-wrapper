@@ -86,7 +86,10 @@
                     <button id="btn-insert-selected" title="선택한 이미지 경로 삽입" class="header-btn">삽입</button>
                 </div>
                 <div class="header-right">
-                    <span id="connection-status" class="status-connected" title="Connection is active">🟢 Connected</span>
+                    <div id="connection-wrapper" title="Click to toggle Auto-Connect ON/OFF" style="display: flex; flex-direction: column; align-items: flex-end; cursor: pointer;">
+                        <span id="connection-status" class="status-connected">🟢 Connected</span>
+                        <span id="auto-connect-label" style="font-size: 9px; color: #888; margin-top: -2px; user-select: none;">Auto-ON</span>
+                    </div>
                     <select id="nav-dropdown" class="header-select" title="메뉴 이동">
                         <option value="">Navigate...</option>
                         <option value="sessions">세션 선택 (Sessions)</option>

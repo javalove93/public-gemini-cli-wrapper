@@ -488,6 +488,11 @@ body.light-theme .tab-item.active {
     border-color: #F44336;
 }
 
+#auto-connect-label.off {
+    color: #ff9800 !important;
+    font-weight: bold;
+}
+
 #connection-status.status-disconnected:hover {
     background: #3d3d3d;
 }
