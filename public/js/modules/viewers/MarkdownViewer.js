@@ -47,8 +47,10 @@ export class MarkdownViewer extends SplitViewer {
             this.mermaidInitialized = true;
         }
 
-        // --- 2. 커스텀 렌더러 설정 (상대 경로 이미지 재계산) ---
+        // --- 2. 커스텀 렌더러 설정 (상대 경로 이미지 및 링크 재계산) ---
         const renderer = new marked.Renderer();
+        
+        // 이미지 렌더러
         renderer.image = function(href, title, text) {
             let actualHref, actualTitle, actualText;
             
@@ -63,7 +65,8 @@ export class MarkdownViewer extends SplitViewer {
             }
 
             if (actualHref && !actualHref.startsWith('http') && !actualHref.startsWith('data:')) {
-                const currentDir = filePath.substring(0, filePath.lastIndexOf('/'));
+                const lastSlashIndex = filePath.lastIndexOf('/');
+                const currentDir = lastSlashIndex !== -1 ? filePath.substring(0, lastSlashIndex) : '';
                 const absoluteImagePath = currentDir ? `${currentDir}/${actualHref}` : actualHref;
                 actualHref = socketClient.getApiPath(`/api/image?path=${encodeURIComponent(absoluteImagePath)}`);
             }
@@ -73,6 +76,44 @@ export class MarkdownViewer extends SplitViewer {
                 out += ` title="${actualTitle}"`;
             }
             out += '>';
+            return out;
+        };
+
+        // 링크 렌더러 추가
+        renderer.link = function(href, title, text) {
+            let actualHref, actualTitle, actualText;
+            
+            if (typeof href === 'object' && href !== null) {
+                actualHref = href.href;
+                actualTitle = href.title;
+                actualText = href.text;
+            } else {
+                actualHref = href;
+                actualTitle = title;
+                actualText = text;
+            }
+
+            // 상대 경로 링크 처리 (http로 시작하지 않고, 앵커 #가 아니며, mailto 등이 아닌 경우)
+            if (actualHref && !actualHref.startsWith('http') && !actualHref.startsWith('#') && !actualHref.startsWith('mailto:') && !actualHref.startsWith('tel:')) {
+                let absolutePath;
+                if (actualHref.startsWith('/')) {
+                    // 프로젝트 루트 기준 절대 경로로 처리 (앞의 / 제거)
+                    absolutePath = actualHref.substring(1);
+                } else {
+                    const lastSlashIndex = filePath.lastIndexOf('/');
+                    const currentDir = lastSlashIndex !== -1 ? filePath.substring(0, lastSlashIndex) : '';
+                    absolutePath = currentDir ? `${currentDir}/${actualHref}` : actualHref;
+                }
+                
+                // viewer.html을 통해 열리도록 URL 재작성
+                actualHref = `viewer.html?path=${encodeURIComponent(absolutePath)}`;
+            }
+            
+            let out = `<a href="${actualHref}"`;
+            if (actualTitle) {
+                out += ` title="${actualTitle}"`;
+            }
+            out += `>${actualText}</a>`;
             return out;
         };
 

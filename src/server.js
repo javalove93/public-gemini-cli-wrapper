@@ -101,6 +101,35 @@ app.get(['/', '/index.html', '/viewer.html', '/key-tester.html', '/mobile.html']
 const publicPath = path.resolve(__dirname, '../public');
 app.use(express.static(publicPath));
 
+// 2.7 Clean URL Fallback (작업 디렉토리의 파일을 직접 호출 시 뷰어로 연결)
+app.use((req, res, next) => {
+    if (req.method !== 'GET') return next();
+    
+    // req.path는 기본적으로 디코딩된 상태임
+    const filePath = req.path.substring(1); 
+    if (!filePath || filePath.startsWith('api/') || filePath.includes('..')) return next();
+
+    const absPath = path.resolve(process.cwd(), filePath);
+    try {
+        if (fs.existsSync(absPath) && fs.statSync(absPath).isFile()) {
+            const ext = path.extname(absPath).toLowerCase();
+            const viewableExts = ['.md', '.txt', '.js', '.json', '.sh', '.py', '.log', '.yaml', '.yml', '.mdx'];
+            const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'];
+
+            if (viewableExts.includes(ext)) {
+                // 텍스트 계열은 뷰어로 리다이렉트
+                return res.redirect(`/viewer.html?path=${encodeURIComponent(filePath)}`);
+            } else if (imageExts.includes(ext)) {
+                // 이미지는 직접 전송 (이전 TR 성과인 { root: '/' } 옵션 활용)
+                return res.sendFile(absPath, { root: '/' });
+            }
+        }
+    } catch (e) {
+        // 권한 에러 등은 무시하고 다음 미들웨어로
+    }
+    next();
+});
+
 // 3. UI 설정 저장 API
 app.post('/api/ui-settings', (req, res) => {
     const newSettings = req.body;
