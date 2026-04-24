@@ -19,8 +19,8 @@ window.wrapBase64 = function(text) {
 
     // "data:image/png;base64," 뒷부분의 긴 문자열을 span으로 감쌈
     // (보통 500자 이상의 긴 데이터만 대상으로 함)
+    // 인라인(Inline) 문법 지원을 위해 괄호 유무에 상관없이 매칭하도록 유연하게 변경
     return escaped.replace(/(data:image\/[^;]+;base64,)([a-zA-Z0-9+/=\s]{500,})/g, (match, prefix, data) => {
-        // 썸네일용 URL (공백 제거)
         const fullSrc = (prefix + data).replace(/\s/g, '');
         return `<img src="${fullSrc}" class="base64-mini-preview" title="Hover to zoom" onclick="if(window.openModal) window.openModal('${fullSrc}')"><span class="base64-fold" title="Click to expand/collapse">${prefix}${data}</span>`;
     });
@@ -128,6 +128,140 @@ document.addEventListener('DOMContentLoaded', () => {
     const editCancelBtn = document.getElementById('edit-cancel-btn');
     let currentRawContent = '';
     let savedScrollPercentage = 0;
+
+    // --- Editor Base64 Tokenizer & Safety Guard ---
+    const base64TokenCache = new Map();
+    let tokenCounter = 0;
+
+    const TOKEN_PREFIX = '[♦︎ BASE64_IMAGE_';
+    const TOKEN_SUFFIX = ' ♦︎]';
+    // 꺾쇠 괄호 없이 순수 data: URI 패턴을 매칭 (마크다운 인라인 렌더링 호환)
+    const BASE64_REGEX = /(data:image\/[^;]+;base64,[a-zA-Z0-9+/=\s]+)/g;
+
+    /**
+     * 텍스트에서 Base64를 찾아 토큰으로 치환하고 캐시에 저장 (에디터 열 때)
+     */
+    const tokenizeBase64 = (text) => {
+        base64TokenCache.clear();
+        tokenCounter = 0;
+        
+        return text.replace(BASE64_REGEX, (match) => {
+            const tokenId = `${TOKEN_PREFIX}${tokenCounter++}${TOKEN_SUFFIX}`;
+            base64TokenCache.set(tokenId, match);
+            return tokenId;
+        });
+    };
+
+    /**
+     * 텍스트의 토큰을 다시 Base64로 복구 (저장할 때)
+     */
+    const restoreBase64 = (text) => {
+        let restoredText = text;
+        for (const [tokenId, base64Data] of base64TokenCache.entries()) {
+            restoredText = restoredText.replace(tokenId, base64Data);
+        }
+        return restoredText;
+    };
+
+    /**
+     * 사용자가 실수로 토큰을 지웠는지 검사 (Safety Guard)
+     */
+    const validateTokens = (text) => {
+        const missingTokens = [];
+        for (const tokenId of base64TokenCache.keys()) {
+            if (!text.includes(tokenId)) {
+                missingTokens.push(tokenId);
+            }
+        }
+        return missingTokens;
+    };
+    // ---------------------------------------------
+
+    // --- Editor Image Paste & Embedding Logic ---
+    /**
+     * 이미지 파일을 최적화된 Base64 데이터 URL로 변환 (1024px 초과 시 리사이징)
+     */
+    const optimizeImageToBase64 = (file) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const MAX_WIDTH = 1024;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                        
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/jpeg', 0.8));
+                    } else {
+                        resolve(e.target.result);
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const getNextImageId = (text) => {
+        const regex = /\[image(\d+)\]:/g;
+        let maxIdx = 0;
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+            const idx = parseInt(match[1], 10);
+            if (idx > maxIdx) maxIdx = idx;
+        }
+        return `image${maxIdx + 1}`;
+    };
+
+    editTextarea.addEventListener('paste', async (e) => {
+        const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+        let imageFile = null;
+
+        for (const item of items) {
+            if (item.type.indexOf('image') !== -1) {
+                imageFile = item.getAsFile();
+                break;
+            }
+        }
+
+        if (imageFile) {
+            e.preventDefault();
+
+            const base64Data = await optimizeImageToBase64(imageFile);
+            
+            // 토큰 생성 및 캐시 저장
+            const tokenId = `${TOKEN_PREFIX}${tokenCounter++}${TOKEN_SUFFIX}`;
+            // 인라인 문법과 호환성을 위해 꺾쇠 괄호 없이 순수 데이터로 저장
+            base64TokenCache.set(tokenId, base64Data);
+
+            const start = editTextarea.selectionStart;
+            const end = editTextarea.selectionEnd;
+            const currentText = editTextarea.value;
+
+            // 인라인(Inline) 방식으로 커서 위치에 즉시 삽입
+            // 뷰어에서 렌더링될 때는 <data:...> 형태로 복원되므로 마크다운 엔진이 이미지로 인식
+            const inlineTag = `![image](${tokenId})`;
+            const newText = currentText.substring(0, start) + inlineTag + currentText.substring(end);
+            
+            editTextarea.value = newText;
+
+            // 커서 위치 복구 (태그 바로 뒤로)
+            const newCursorPos = start + inlineTag.length;
+            editTextarea.setSelectionRange(newCursorPos, newCursorPos);
+            
+            console.log(`[EDITOR] Image embedded inline with token ${tokenId}.`);
+        }
+    });
+    // ---------------------------------------------
     
     const sortNameHeader = document.getElementById('sort-name');
     const sortDateHeader = document.getElementById('sort-date');
@@ -476,13 +610,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!filePath) return;
         
         // 현재 활성화된 뷰 컨테이너 찾기 및 스크롤 비율 계산
-        let activePane = null;
         let scrollPercentage = 0;
-        if (filePath.toLowerCase().endsWith('.md')) {
-            activePane = mdRaw.closest('.pane');
-        } else {
-            activePane = textContent.closest('.full-view');
-        }
+        const activePane = filePath.toLowerCase().endsWith('.md') 
+            ? mdRaw.closest('.pane') 
+            : textContent.closest('.full-view');
         
         if (activePane && activePane.scrollHeight > activePane.clientHeight) {
             scrollPercentage = activePane.scrollTop / (activePane.scrollHeight - activePane.clientHeight);
@@ -490,9 +621,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 모달 준비
         editFilePath.textContent = `Editing: ${filePath}`;
-        if (editTextarea.value !== currentRawContent) {
-            editTextarea.value = currentRawContent;
+        
+        // [Safety Tokenizer] 원본 텍스트를 토큰화하여 에디터에 주입
+        const tokenizedContent = tokenizeBase64(currentRawContent);
+        if (editTextarea.value !== tokenizedContent) {
+            editTextarea.value = tokenizedContent;
         }
+        
         editModal.classList.remove('hidden');
 
         // Textarea 스크롤 및 커서 동기화 (DOM 렌더링 후 적용)
@@ -530,7 +665,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 파일 저장
     editSaveBtn.onclick = async () => {
-        const newContent = editTextarea.value;
+        const currentEditorText = editTextarea.value;
+        
+        // [Safety Guard] Check if the user accidentally deleted Base64 tokens or intended to delete them
+        const missingTokens = validateTokens(currentEditorText);
+        if (missingTokens.length > 0) {
+            const isIntentional = confirm(`⚠️ Image Token Deletion Detected\n\nThe following images have been removed from the document:\n[${missingTokens.join(', ')}]\n\nDo you want to permanently delete these images from the file?\n(If you deleted them by mistake, click 'Cancel' and use Ctrl+Z to restore them.)`);
+            if (!isIntentional) {
+                return; // Stop saving
+            }
+        }
+
+        // [Restore] Restore only the remaining tokens to their original Base64 data (deleted tokens are ignored)
+        const newContent = restoreBase64(currentEditorText);
+
         const originalText = editSaveBtn.textContent;
         editSaveBtn.textContent = 'Saving...';
         editSaveBtn.disabled = true;

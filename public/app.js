@@ -1,6 +1,7 @@
 import { socketClient } from './js/core/SocketClient.js';
 import { fileManager } from './js/core/FileManager.js';
 import { tmuxManager } from './js/core/TmuxManager.js';
+import { TerminalManager } from './js/modules/TerminalManager.js';
 
 // 기존 전역 변수 유지 (리팩토링 진행함에 따라 점진적 제거 예정)
 const basePath = socketClient.basePath;
@@ -36,6 +37,9 @@ function getUiSetting(key) {
 const socket = socketClient.connect('terminal');
 // 소켓 연결 후 TmuxManager의 이벤트 리스너 초기화
 tmuxManager.initListeners();
+
+let terminalManager; // TerminalManager 인스턴스
+let term; // xterm 인스턴스 (기존 코드 호환을 위해 유지하되, manager에서 참조)
 
 const sessionManager = document.getElementById('session-manager');
 const mainLayout = document.getElementById('main-layout');
@@ -339,11 +343,8 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-let term;
-let fitAddon;
 let recentThumbnails = []; // 최대 5개
 let selectedFileContext = null; // 컨텍스트 메뉴가 열린 대상 파일 정보
-let clipboardHistory = []; // 최대 5개 저장
 let instanceName = null; // 인스턴스 구분자 (예: DEV, PROD)
 
 let customShortcut = {
@@ -515,20 +516,22 @@ const darkThemeColors = {
 };
 
 const applyTheme = (theme) => {
-    if (theme === 'light') {
+    const isLight = theme === 'light';
+    if (isLight) {
         document.body.classList.add('light-theme');
-        if (term) term.options.theme = lightThemeColors;
     } else {
         document.body.classList.remove('light-theme');
-        if (term) term.options.theme = darkThemeColors;
     }
-    
+
+    if (terminalManager) {
+        terminalManager.updateTheme(isLight);
+    }
+
     // Tmux 백엔드에 테마 변경 알림 (비활성 패널 배경색 연동)
     if (socket && socket.connected) {
         socket.emit('theme_change', theme);
     }
 };
-
 // 모달 및 설정 이벤트
 btnSettings.onclick = () => {
     settingsModal.style.display = 'flex';
@@ -810,353 +813,50 @@ btnSyncTmux.onclick = async () => {
     }
 };
 
-// 사이드바 토글
-const fitTerminal = () => {
-    if (fitAddon && term) {
-        fitAddon.fit();
-        // 마지막 줄이 잘리거나 우측 경계에 딱 붙는 것을 방지하기 위해 보수적으로 1씩 줄임
-        const safeCols = Math.max(20, term.cols - 1);
-        const safeRows = Math.max(10, term.rows - 1);
-        term.resize(safeCols, safeRows);
-        socket.emit('resize', { cols: safeCols, rows: safeRows });
-    }
-};
-
 btnToggleSidebar.onclick = () => {
     sidebar.classList.toggle('hidden');
     // 사이드바 애니메이션(0.2s) 고려하여 리사이즈
-    setTimeout(fitTerminal, 250);
+    if (terminalManager) {
+        setTimeout(() => terminalManager.fit(), 250);
+    }
 };
 
-// 터미널 초기화
-function initTerminal() {
-    let savedFontFamily = getUiSetting('GCW_UI_TERMINAL_FONT_FAMILY');
-    let savedFontSize = parseInt(getUiSetting('GCW_UI_TERMINAL_FONT_SIZE')) || 17;
-    
-    console.log('[DEBUG] Initializing terminal with font:', savedFontFamily, 'size:', savedFontSize);
+// TerminalManager 인스턴스 생성 및 초기화
+function createTerminalManager() {
+    if (terminalManager) return terminalManager;
 
-    // UI Select 박스 동기화 (목록에 있을 때만 선택됨)
-    if (savedFontFamily) {
-        selectFont.value = savedFontFamily;
-        if (!selectFont.value) {
-            console.warn('[DEBUG] Font in .gcw.conf does not match any <option>, using first default for UI:', selectFont.options[0].value);
-            selectFont.value = selectFont.options[0].value;
+    terminalManager = new TerminalManager({
+        socket: socket,
+        getUiSetting: getUiSetting,
+        saveUiSetting: saveUiSetting,
+        lightThemeColors: lightThemeColors,
+        darkThemeColors: darkThemeColors,
+        customShortcut: customShortcut,
+        customOShortcut: customOShortcut,
+        customHomeShortcut: customHomeShortcut,
+        customEndShortcut: customEndShortcut,
+        customPrefixShortcut: customPrefixShortcut,
+        customPasteShortcut: customPasteShortcut,
+        onPwdSyncTrigger: () => {
+            if (autoSyncTimeout) clearTimeout(autoSyncTimeout);
+            autoSyncTimeout = setTimeout(() => {
+                if (tmuxManager.currentSession && btnSyncTmux) {
+                    console.log('[DEBUG] Auto-syncing PWD after Enter key...');
+                    btnSyncTmux.onclick();
+                }
+            }, 500);
         }
-    }
-    
-    // 실제 터미널에는 설정 파일 값을 최우선 적용, 없으면 UI 현재 값을 사용
-    const selectedFont = savedFontFamily || selectFont.value;
-
-    term = new Terminal({
-        cursorBlink: true,
-        fontFamily: selectedFont,
-        fontSize: savedFontSize,
-        theme: optTheme.value === 'light' ? lightThemeColors : darkThemeColors,
-        allowProposedApi: true, // OSC 52 (Clipboard) 지원 등 고급 API 허용
-        macOptionClickForcesSelection: true // macOS에서 Option(Alt) 키를 눌러 tmux 마우스 모드를 우회하여 텍스트 선택 허용
     });
 
-    // 폰트 변경 이벤트
-    selectFont.onchange = () => {
-        const newFont = selectFont.value;
-        console.log('[DEBUG] Changing font to:', newFont);
-        term.options.fontFamily = newFont;
-        saveUiSetting('GCW_UI_TERMINAL_FONT_FAMILY', newFont);
-        // 폰트 변경 후 레이아웃 재조정
-        setTimeout(fitTerminal, 50);
-    };
-
-    // 폰트 크기 증감 이벤트
-    btnFontPlus.onclick = () => {
-        const newSize = term.options.fontSize + 1;
-        term.options.fontSize = newSize;
-        saveUiSetting('GCW_UI_TERMINAL_FONT_SIZE', newSize);
-        setTimeout(fitTerminal, 50);
-    };
-
-    btnFontMinus.onclick = () => {
-        const newSize = Math.max(8, term.options.fontSize - 1);
-        term.options.fontSize = newSize;
-        saveUiSetting('GCW_UI_TERMINAL_FONT_SIZE', newSize);
-        setTimeout(fitTerminal, 50);
-    };
+    term = terminalManager.init();
+    return terminalManager;
+}
 
 let autoSyncTimeout = null;
 
-function triggerPwdAutoSync() {
-    if (autoSyncTimeout) clearTimeout(autoSyncTimeout);
-    autoSyncTimeout = setTimeout(() => {
-        if (tmuxManager.currentSession && btnSyncTmux) {
-            console.log('[DEBUG] Auto-syncing PWD after Enter key...');
-            btnSyncTmux.onclick();
-        }
-    }, 500); // 500ms 지연 후 동기화 (cd 명령어 실행 시간 확보)
-}
-
-    // Shift+Enter 입력 시 줄바꿈(새 줄 삽입)만 수행하도록 \x0a(Ctrl+J) 전송
-    term.attachCustomKeyEventHandler((e) => {
-        // 일반 Enter(Return) 키 감지 시 PWD 자동 동기화 트리거
-        if (e.key === 'Enter' && !e.shiftKey && e.type === 'keydown') {
-            triggerPwdAutoSync();
-        }
-
-        // Map Cmd+C to Ctrl+C (SIGINT) 설정 확인
-        if (optCmdC.checked && e.metaKey && (e.key === 'c' || e.key === 'C')) {
-            if (e.type === 'keydown') {
-                socket.emit('input', '\x03');
-            }
-            return false; // 브라우저 복사 이벤트 방지
-        }
-
-        if (recordingTarget) return false;
-
-        // Map custom shortcut to Ctrl+Y 설정 확인
-        if (optCmdY.checked && 
-            e.metaKey === customShortcut.metaKey &&
-            e.ctrlKey === customShortcut.ctrlKey &&
-            e.altKey === customShortcut.altKey &&
-            e.shiftKey === customShortcut.shiftKey &&
-            e.key.toLowerCase() === customShortcut.key) {
-            
-            if (e.type === 'keydown') {
-                socket.emit('input', '\x19');
-            }
-            return false; // 브라우저 기본 이벤트 방지
-        }
-
-        // Map custom shortcut to Ctrl+O 설정 확인
-        if (optCmdO && optCmdO.checked &&
-            e.metaKey === customOShortcut.metaKey &&
-            e.ctrlKey === customOShortcut.ctrlKey &&
-            e.altKey === customOShortcut.altKey &&
-            e.shiftKey === customOShortcut.shiftKey &&
-            e.key.toLowerCase() === customOShortcut.key) {
-            
-            if (e.type === 'keydown') {
-                socket.emit('input', '\x0f'); // \x0f is Ctrl+O
-            }
-            return false;
-        }
-
-        // Map custom shortcut to Home 설정 확인
-        if (optMapHome && optMapHome.checked &&
-            e.metaKey === customHomeShortcut.metaKey &&
-            e.ctrlKey === customHomeShortcut.ctrlKey &&
-            e.altKey === customHomeShortcut.altKey &&
-            e.shiftKey === customHomeShortcut.shiftKey &&
-            e.key.toLowerCase() === customHomeShortcut.key) {
-            
-            if (e.type === 'keydown') {
-                socket.emit('input', '\x1b[H'); // Standard ANSI sequence for Home
-            }
-            return false;
-        }
-
-        // Map custom shortcut to End 설정 확인
-        if (optMapEnd && optMapEnd.checked &&
-            e.metaKey === customEndShortcut.metaKey &&
-            e.ctrlKey === customEndShortcut.ctrlKey &&
-            e.altKey === customEndShortcut.altKey &&
-            e.shiftKey === customEndShortcut.shiftKey &&
-            e.key.toLowerCase() === customEndShortcut.key) {
-
-            if (e.type === 'keydown') {
-                socket.emit('input', '\x1b[F'); // Standard ANSI sequence for End
-            }
-            return false;
-        }
-
-        // Map custom shortcut to Ctrl+B (Prefix) 설정 확인
-        if (optMapPrefix && optMapPrefix.checked &&
-            e.metaKey === customPrefixShortcut.metaKey &&
-            e.ctrlKey === customPrefixShortcut.ctrlKey &&
-            e.altKey === customPrefixShortcut.altKey &&
-            e.shiftKey === customPrefixShortcut.shiftKey &&
-            e.key.toLowerCase() === customPrefixShortcut.key) {
-
-            if (e.type === 'keydown') {
-                socket.emit('input', '\x02'); // \x02 is Ctrl+B
-            }
-            return false;
-        }
-
-        // Map custom shortcut to Paste 설정 확인
-        if (optMapPaste && optMapPaste.checked &&
-            e.metaKey === customPasteShortcut.metaKey &&
-            e.ctrlKey === customPasteShortcut.ctrlKey &&
-            e.altKey === customPasteShortcut.altKey &&
-            e.shiftKey === customPasteShortcut.shiftKey &&
-            e.key.toLowerCase() === customPasteShortcut.key) {
-
-            if (e.type === 'keydown') {
-                window.lastCustomPasteTime = Date.now(); // Promise 완료 전 동기적으로 타임스탬프 기록
-                if (navigator.clipboard && navigator.clipboard.readText) {
-                    navigator.clipboard.readText()
-                        .then(text => {
-                            if (text) {
-                                socket.emit('input', text);
-                            }
-                        })
-                        .catch(err => {
-                            console.error('Failed to read clipboard contents: ', err);
-                        });
-                } else {
-                    console.error('Clipboard API not available');
-                }
-            }
-            return false;
-        }
-
-        if (e.key === 'Enter' && e.shiftKey) {            if (e.type === 'keydown') {
-                socket.emit('input', '\x0a');
-            }
-            return false; // keydown, keypress, keyup 모두 xterm 기본 처리 방지
-        }
-        return true;
+    window.addEventListener('resize', () => {
+        if (terminalManager) terminalManager.fit();
     });
-
-    fitAddon = new FitAddon.FitAddon();
-    term.loadAddon(fitAddon);
-
-    // WebLinksAddon 추가: Ctrl 또는 Cmd 키를 누르고 클릭했을 때만 링크 열기
-    const webLinksAddon = new WebLinksAddon.WebLinksAddon((e, uri) => {
-        if (e.ctrlKey || e.metaKey) {
-            window.open(uri, '_blank');
-        }
-    });
-    term.loadAddon(webLinksAddon);
-
-    term.open(document.getElementById('terminal'));
-    fitTerminal();
-
-    term.onData(data => {
-        socket.emit('input', data);
-    });
-
-    // OSC 52 (클립보드 복사 시퀀스) 수신 핸들러 추가
-    // tmux에서 set-clipboard on이 켜져 있으면 선택 시 이 시퀀스를 전송합니다.
-    term.parser.registerOscHandler(52, (data) => {
-        try {
-            const parts = data.split(';');
-            if (parts.length >= 2) {
-                const b64Data = parts[1];
-                // Base64 디코딩 후 UTF-8 문자로 변환 (한글 깨짐 방지)
-                const binString = atob(b64Data);
-                const bytes = new Uint8Array(binString.length);
-                for (let i = 0; i < binString.length; i++) {
-                    bytes[i] = binString.charCodeAt(i);
-                }
-                const text = new TextDecoder('utf-8').decode(bytes);
-                
-                // Tmux에서 마우스 클릭으로 인한 1~2글자 우발적 복사 방지
-                if (text && text.length > 2) {
-                    console.log('[DEBUG] OSC 52 Copy sequence received. Length:', text.length);
-                    copyToClipboard(text);
-                } else {
-                    console.log('[DEBUG] OSC 52 Copy sequence ignored (too short). Length:', text.length);
-                }
-                return true;
-            }
-        } catch (e) {
-            console.error('[DEBUG] Failed to parse OSC 52 data:', e);
-        }
-        return false;
-    });
-
-    // 텍스트 선택 시 클립보드 자동 복사 (Shift 드래그 등 우회 선택 시)
-    term.onSelectionChange(() => {
-        const selectedText = term.getSelection();
-        // 한두 글자 선택은 클릭 시 발생할 수 있으므로 최소 2자 이상일 때만 복사 (우발적 복사 방지)
-        if (selectedText && selectedText.length > 2) {
-            console.log('[DEBUG] xterm selection detected. Length:', selectedText.length);
-            copyToClipboard(selectedText);
-        }
-    });
-
-    function copyToClipboard(text) {
-        if (!text || text.trim() === '') return;
-        
-        // 히스토리에 추가
-        addToClipboardHistory(text);
-
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(text).then(() => {
-                console.log('[DEBUG] Auto-copied using navigator.clipboard');
-            }).catch(err => {
-                console.warn('[DEBUG] navigator.clipboard failed, using fallback.', err);
-                fallbackCopyTextToClipboard(text);
-            });
-        } else {
-            fallbackCopyTextToClipboard(text);
-        }
-    }
-
-    function addToClipboardHistory(text) {
-        // 이미 존재하면 제거 (최상단으로 올리기 위해)
-        const index = clipboardHistory.indexOf(text);
-        if (index !== -1) {
-            clipboardHistory.splice(index, 1);
-        }
-        
-        clipboardHistory.unshift(text);
-        
-        // 최대 5개 유지
-        if (clipboardHistory.length > 5) {
-            clipboardHistory.pop();
-        }
-        
-        renderClipboardHistory();
-    }
-
-    function renderClipboardHistory() {
-        clipboardHistoryList.innerHTML = '';
-        clipboardHistory.forEach(text => {
-            const div = document.createElement('div');
-            div.className = 'clipboard-item';
-            div.textContent = text.trim();
-            div.title = text; // 마우스 오버 시 전체 내용 표시
-            div.onclick = () => {
-                // 항목 클릭 시 클립보드에 다시 복사
-                copyToClipboard(text);
-                // 시각적 피드백
-                div.style.backgroundColor = '#007acc';
-                setTimeout(() => div.style.backgroundColor = '', 200);
-            };
-            clipboardHistoryList.appendChild(div);
-        });
-    }
-
-    function fallbackCopyTextToClipboard(text) {
-        console.log('[DEBUG] Executing fallbackCopyTextToClipboard');
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        
-        // 화면 스크롤을 방지하기 위해 보이지 않는 곳에 고정
-        textArea.style.top = "0";
-        textArea.style.left = "0";
-        textArea.style.position = "fixed";
-        textArea.style.opacity = "0";
-
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-
-        try {
-            const successful = document.execCommand('copy');
-            if (successful) {
-                console.log('[DEBUG] Fallback copy successful');
-            } else {
-                console.error('[DEBUG] Fallback copy failed (execCommand returned false)');
-            }
-        } catch (err) {
-            console.error('[DEBUG] Fallback copy error', err);
-        }
-
-        document.body.removeChild(textArea);
-        term.focus(); // 터미널로 포커스 반환
-    }
-
-    window.addEventListener('resize', fitTerminal);
 
     socket.on('output', data => {
         term.write(data);
@@ -1165,15 +865,30 @@ function triggerPwdAutoSync() {
     socket.on('exit', () => {
         detach();
     });
-    
     // 우클릭 메뉴(Context Menu) 방지
     document.getElementById('terminal').addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
     }, false);
-}
 
-// 최근 썸네일 로드 (현재 탐색기 디렉토리 기준)
+    // 세션 분리
+    async function detach() {
+    try {
+        if (basePath !== '/') {
+            window.location.href = '/';
+            return;
+        }
+
+        const response = await fetch(getApiPath('/api/system-info'));
+        const info = await response.json();
+        const targetUrl = `${window.location.protocol}//${window.location.hostname}:${info.masterPort}/`;
+        window.location.href = targetUrl;
+    } catch (e) {
+        window.location.href = '/';
+    }
+    }
+
+    // 최근 썸네일 로드 (현재 탐색기 디렉토리 기준)
 async function loadLatestThumbnails(dir = fileManager.currentDir) {
     try {
         const query = dir ? `?dir=${encodeURIComponent(dir)}` : '';
@@ -1203,7 +918,7 @@ function attachSession(name) {
     btnResetClients.style.display = 'flex';
     
     if (!term) {
-        initTerminal();
+        createTerminalManager();
     } else {
         term.clear();
     }
@@ -1389,13 +1104,14 @@ tmuxManager.onPaneListUpdated = (panes) => {
 // 연결 상태 처리
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 3;
+let isFirstConnection = true;
 
 socket.on('disconnect', () => {
     console.warn('[DEBUG] Socket disconnected.');
     connectionStatus.className = 'status-disconnected';
     connectionStatus.textContent = '🔴 Disconnected (Click to reconnect)';
     connectionStatus.title = 'Connection lost. Click to attempt reconnection.';
-    
+
     if (term) {
         term.options.disableStdin = true;
     }
@@ -1407,22 +1123,31 @@ socket.on('connect', () => {
     connectionStatus.textContent = '🟢 Connected';
     connectionStatus.title = 'Connection is active';
     reconnectAttempts = 0; // 재연결 횟수 초기화
-    
+
     if (term) {
         term.options.disableStdin = false;
     }
-    
+
     // 이전에 사용 중이던 세션이 있다면 다시 연결 시도
     // [전략 3+1] 자동 접속 방지 로직 도입
     if (tmuxManager.currentSession && mainLayout.style.display !== 'none') {
-        if (isAutoConnectEnabled && document.visibilityState === 'visible') {
+        // 최초 접속(새로고침 등)일 때는 Auto-OFF 여부와 무관하게 1회 무조건 연결 허용
+        if (isFirstConnection) {
+            console.log('[DEBUG] First connection detected. Attaching to session:', tmuxManager.currentSession);
+            tmuxManager.attachSession(tmuxManager.currentSession);
+            isFirstConnection = false;
+        } 
+        // 이후 재연결 상황일 때만 Auto-OFF 및 포커스 방어막 작동
+        else if (isAutoConnectEnabled && document.visibilityState === 'visible') {
             console.log('[DEBUG] Auto-reattaching to last used session:', tmuxManager.currentSession);
             tmuxManager.attachSession(tmuxManager.currentSession);
         } else {
             console.log('[DEBUG] Auto-attach skipped: Tab is hidden or Auto-Connect is OFF.');
-            // 자동 접속이 꺼져있거나 백그라운드인 경우, 세션 끊김 오버레이를 유지하여 사용자의 명시적 클릭 유도
+            // 자동 접속이 꺼져있거나 백그라운드인 경우, 세션 끊김 오버레이를  유지하여 사용자의 명시적 클릭 유도
             tmuxManager.onSessionExited(); 
         }
+    } else {
+        isFirstConnection = false;
     }
 });
 
@@ -1556,7 +1281,7 @@ btnSplitV.onclick = () => {
 };
 
 btnResetClients.onclick = () => {
-    if (confirm("현재 세션에 꼬인 클라이언트를 리셋하고 모든 접속을 해제하시겠습니까? (실행 후 새로고침 필요)")) {
+    if (confirm("Do you want to reset clients in the current session and disconnect all connections? (Refresh required after execution)")) {
         socket.emit('tmux_reset_clients');
     }
 };
@@ -1886,7 +1611,7 @@ menuRename.onclick = () => {
 menuDelete.onclick = () => {
     if (!selectedFileContext) return;
     
-    if (confirm(`'${selectedFileContext.name}'을(를) 정말 삭제하시겠습니까?`)) {
+    if (confirm(`Are you sure you want to delete '${selectedFileContext.name}'?`)) {
         fileManager.deleteFile(selectedFileContext.path);
     }
     contextMenu.classList.add('hidden');
@@ -1964,8 +1689,8 @@ async function initApp() {
         // 우선순위: URL 파라미터 > 서버 기본값
         const defaultSession = sessionFromUrl || sysInfo.defaultSession;
 
-        // 명시적인 세션 선택 요청(?select=true)이 없고, 세션 정보가 있으며, 자동 접속이 켜져 있을 때만 자동 접속 시도
-        if (defaultSession && !forceSelect && isAutoConnectEnabled) {
+        // 명시적인 세션 선택 요청(?select=true)이 없고, 세션 정보가 있으면 초기 1회는 항상 접속 시도 (새로고침 대응)
+        if (defaultSession && !forceSelect) {
             // 현재 세션 목록 확인
             const sessRes = await fetch(getApiPath('/api/sessions'));
             const sessions = await sessRes.json();

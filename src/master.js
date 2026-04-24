@@ -86,7 +86,7 @@ function startProject(name, projectConfig) {
     console.log(`[Master] Starting project '${name}' at ${dir} on internal port ${childPort}`);
     
     // server.js를 자식 프로세스로 실행, cwd를 해당 프로젝트 폴더로 설정
-    const childEnv = { ...process.env, GCW_PROJECT_NAME: name, GCW_MASTER_PORT: PORT.toString() };
+    const childEnv = { ...process.env, GCW_PROJECT_NAME: name, GCW_MASTER_PORT: PORT.toString(), GCW_HOME: dir };
     if (sessionName) {
         childEnv.GCW_DEFAULT_SESSION = sessionName;
     }
@@ -169,7 +169,7 @@ function startProject(name, projectConfig) {
         changeOrigin: true,
         ws: true, // WebSocket 지원
         pathFilter: `/${name}`, // HTTP와 WebSocket(upgrade) 모두에서 이 경로 필터링
-        pathRewrite: (path, req) => {
+        pathRewrite: (path) => {
             // /GCW/api/files -> /api/files 로 경로 재작성
             return path.replace(new RegExp(`^/${name}`), '');
         },
@@ -576,7 +576,7 @@ function cleanupAndExit() {
         try {
             info.process.kill('SIGKILL'); // EADDRINUSE 방지를 위해 즉각 종료
         } catch (e) {
-            // 이미 종료된 경우 무시
+            /* ignore */
         }
     });
     process.exit(0);
@@ -586,7 +586,7 @@ process.on('SIGINT', cleanupAndExit);
 process.on('SIGTERM', cleanupAndExit);
 process.on('exit', () => {
     Object.values(childProcesses).forEach(info => {
-        try { info.process.kill('SIGKILL'); } catch (e) {}
+        try { info.process.kill('SIGKILL'); } catch (e) { /* ignore */ }
     });
 });
 

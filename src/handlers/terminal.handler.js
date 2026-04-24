@@ -83,12 +83,25 @@ class TerminalHandler {
         
         console.log(`[TERM] Creating/Attaching tmux session: ${sessionName}, keepAlive: ${options.keepAlive}`);
 
-        const { env: customEnv } = this.getGcwEnv();
+        const { env: customEnv, customVars } = this.getGcwEnv();
+        
+        // 현재 프로세스의 환경 변수 중 GCW_ 로 시작하는 것들을 찾아 환경 주입 문자열(-e) 생성
+        let envArgs = "";
+        for (const [k, v] of Object.entries(process.env)) {
+            if (k.startsWith('GCW_')) {
+                envArgs += `-e "${k}=${v}" `;
+            }
+        }
+        for (const [key, value] of Object.entries(customVars)) {
+            if (!envArgs.includes(`"${key}=`)) {
+                envArgs += `-e "${key}=${value}" `;
+            }
+        }
 
         // 1. Tmux 세션 생성 또는 확인
         const startCmd = options.keepAlive 
-            ? `tmux new-session -d -s ${sessionName} \\; send-keys -t ${sessionName} "gemini" C-m`
-            : `tmux new-session -d -s ${sessionName} "gemini"`;
+            ? `tmux new-session -d ${envArgs}-s ${sessionName} \\; send-keys -t ${sessionName} "gemini" C-m`
+            : `tmux new-session -d ${envArgs}-s ${sessionName} "gemini"`;
 
         const tmuxSetupCmds = [
             startCmd,
@@ -210,8 +223,16 @@ class TerminalHandler {
         const { env: customEnv, customVars } = this.getGcwEnv();
         
         let envArgs = "";
+        // node-pty를 실행 중인 server.js의 환경 변수 중 GCW_ 를 상속
+        for (const [k, v] of Object.entries(process.env)) {
+            if (k.startsWith('GCW_')) {
+                envArgs += `-e "${k}=${v}" `;
+            }
+        }
         for (const [key, value] of Object.entries(customVars)) {
-            envArgs += `-e "${key}=${value}" `;
+            if (!envArgs.includes(`"${key}=`)) {
+                envArgs += `-e "${key}=${value}" `;
+            }
         }
 
         console.log(`[TERM] Splitting session ${this.currentSessionName} (${direction})`);
