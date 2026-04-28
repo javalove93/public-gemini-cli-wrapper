@@ -61,6 +61,17 @@ npm install
 ./run.sh
 ```
 
+### 5. 브라우저 접속
+
+5001 포트가 외부에 열려 있거나 로컬에 브라우저가 있으면 그것을 사용하면 되지만, 원격에서 브라우저가 없는 호스트가 접속하는 경우에는 ssh 포트포워딩이 필요합니다.
+
+```bash
+ssh -L 35001:127.0.0.1:5001 <hostname>
+```
+
+그리고 나서 ssh를 접속한 클라리언트에서 http://localhost:35001로 접속합니다. (포트번호는 각자 클라이언트 환경에 맞게 변경)
+
+
 ### 🐳 Docker Support (Alternative)
 Windows와 같이 Tmux 환경을 직접 구축하기 어려운 경우 Docker를 사용하여 실행할 수 있습니다. 자세한 내용은 **[Docker Guide](docs/docker-guide.md)**를 참고하세요.
 
