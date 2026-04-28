@@ -27,6 +27,19 @@ Gemini CLI를 브라우저 및 모바일 환경에서 편리하게 사용할 수
 
 ### 2. 설치 (Installation)
 
+node module 설치 과정에 빌드 도구가 필요하여
+
+```bash
+sudo apt-get update && sudo apt-get install -y build-essential
+```
+
+tmux 설치
+
+```bash
+sudo apt-get install tmux
+```
+
+
 ```bash
 git clone https://github.com/your-username/public-gemini-cli-wrapper.git
 cd public-gemini-cli-wrapper
