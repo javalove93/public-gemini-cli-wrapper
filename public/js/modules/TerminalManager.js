@@ -22,20 +22,15 @@ export class TerminalManager {
         this.optMapEnd = document.getElementById('opt-map-end');
         this.optMapPrefix = document.getElementById('opt-map-prefix');
         this.optMapPaste = document.getElementById('opt-map-paste');
-        this.clipboardHistoryList = document.getElementById('clipboard-history-list');
+        this.clipboardHistoryList = document.getElementById('clipboard-history'); // Fix ID mismatch
 
         // State
         this.clipboardHistory = [];
-        this.customShortcut = options.customShortcut;
-        this.customOShortcut = options.customOShortcut;
-        this.customHomeShortcut = options.customHomeShortcut;
-        this.customEndShortcut = options.customEndShortcut;
-        this.customPrefixShortcut = options.customPrefixShortcut;
-        this.customPasteShortcut = options.customPasteShortcut;
-        this.customSttShortcut = options.customSttShortcut;
-        this.customSttShortcut2 = options.customSttShortcut2;
+        this.shortcuts = options.shortcuts || {};
         this.optMapStt = options.optMapStt;
+        this.optMapSttCancel = options.optMapSttCancel;
         this.sttManager = options.sttManager;
+        this.onPwdSyncTrigger = options.onPwdSyncTrigger;
         
         // 내장 테마 색상 정의
         this.lightThemeColors = {
@@ -149,40 +144,15 @@ export class TerminalManager {
 
         // 키 이벤트 핸들러
         this.term.attachCustomKeyEventHandler((e) => {
-            if (e.key === 'Enter' && !e.shiftKey && e.type === 'keydown') {
-                this.onPwdSyncTrigger();
+            if (e.type === 'keydown') {
+                // console.log('[DEBUG] Key pressed in terminal:', e.key, e.code, 'STT Recording:', this.sttManager?.isRecording);
             }
 
-            if (this.optCmdC.checked && e.metaKey && (e.key === 'c' || e.key === 'C')) {
-                if (e.type === 'keydown') this.socket.emit('input', '\x03');
-                return false;
-            }
-
-            // Custom Shortcuts mapping
-            if (this._handleCustomShortcut(e, this.optCmdY, this.customShortcut, '\x19')) return false;
-            if (this._handleCustomShortcut(e, this.optCmdO, this.customOShortcut, '\x0f')) return false;
-            if (this._handleCustomShortcut(e, this.optMapHome, this.customHomeShortcut, '\x1b[H')) return false;
-            if (this._handleCustomShortcut(e, this.optMapEnd, this.customEndShortcut, '\x1b[F')) return false;
-            if (this._handleCustomShortcut(e, this.optMapPrefix, this.customPrefixShortcut, '\x02')) return false;
-
-            // Paste shortcut (Special handling)
-            if (this.optMapPaste && this.optMapPaste.checked && this._matchShortcut(e, this.customPasteShortcut)) {
+            // STT Cancel (Dual Shortcut) - Two-step internal confirmation
+            if (this.optMapSttCancel && this.optMapSttCancel.checked && this.sttManager && this.sttManager.isRecording &&
+                (this._matchShortcut(e, this.shortcuts['sttCancel']) || this._matchShortcut(e, this.shortcuts['sttCancel_2']))) {
                 if (e.type === 'keydown') {
-                    window.lastCustomPasteTime = Date.now();
-                    this._pasteFromClipboard();
-                }
-                return false;
-            }
-
-            // STT shortcut (Special handling)
-            if (this.optMapStt && this.optMapStt.checked && 
-                (this._matchShortcut(e, this.customSttShortcut) || this._matchShortcut(e, this.customSttShortcut2))) {
-                if (e.type === 'keydown') {
-                    if (this.sttManager) {
-                        this.sttManager.toggle();
-                    } else {
-                        console.warn('[STT] Speech Recognition not supported or not initialized.');
-                    }
+                    this.sttManager.cancel();
                 }
                 return false;
             }
@@ -190,9 +160,49 @@ export class TerminalManager {
             // STT 진행 중 Enter 키 입력 시 즉시 종료 (최종 인식된 텍스트 전송 트리거)
             if (e.key === 'Enter' && !e.shiftKey && this.sttManager && this.sttManager.isRecording) {
                 if (e.type === 'keydown') {
+                    console.log('[STT] Finalizing by Enter key in Terminal');
                     this.sttManager.stop();
                 }
                 // 기존 터미널 Enter 로직을 타지 않게 막음
+                return false;
+            }
+
+            if (e.key === 'Enter' && !e.shiftKey && e.type === 'keydown') {
+                if (this.onPwdSyncTrigger) this.onPwdSyncTrigger();
+            }
+
+            if (this.optCmdC.checked && e.metaKey && (e.key === 'c' || e.key === 'C')) {
+                if (e.type === 'keydown') this.socket.emit('input', '\x03');
+                return false;
+            }
+
+            // Custom Shortcuts mapping (Dual)
+            if (this._handleDualShortcut(e, this.optCmdY, 'custom', 'custom_2', '\x19')) return false;
+            if (this._handleDualShortcut(e, this.optCmdO, 'customO', 'customO_2', '\x0f')) return false;
+            if (this._handleDualShortcut(e, this.optMapHome, 'home', 'home_2', '\x1b[H')) return false;
+            if (this._handleDualShortcut(e, this.optMapEnd, 'end', 'end_2', '\x1b[F')) return false;
+            if (this._handleDualShortcut(e, this.optMapPrefix, 'prefix', 'prefix_2', '\x02')) return false;
+
+            // Paste shortcut (Special handling - Dual)
+            if (this.optMapPaste && this.optMapPaste.checked && 
+                (this._matchShortcut(e, this.shortcuts['paste']) || this._matchShortcut(e, this.shortcuts['paste_2']))) {
+                if (e.type === 'keydown') {
+                    window.lastCustomPasteTime = Date.now();
+                    this._pasteFromClipboard();
+                }
+                return false;
+            }
+
+            // STT toggle shortcut (Special handling - Dual)
+            if (this.optMapStt && this.optMapStt.checked && 
+                (this._matchShortcut(e, this.shortcuts['stt']) || this._matchShortcut(e, this.shortcuts['stt_2']))) {
+                if (e.type === 'keydown') {
+                    if (this.sttManager) {
+                        this.sttManager.toggle();
+                    } else {
+                        console.warn('[STT] Speech Recognition not supported or not initialized.');
+                    }
+                }
                 return false;
             }
 
@@ -221,8 +231,9 @@ export class TerminalManager {
                e.key.toLowerCase() === shortcut.key;
     }
 
-    _handleCustomShortcut(e, option, shortcut, sequence) {
-        if (option && option.checked && this._matchShortcut(e, shortcut)) {
+    _handleDualShortcut(e, optionCheckbox, shortcutKey1, shortcutKey2, sequence) {
+        if (optionCheckbox && optionCheckbox.checked && 
+            (this._matchShortcut(e, this.shortcuts[shortcutKey1]) || this._matchShortcut(e, this.shortcuts[shortcutKey2]))) {
             if (e.type === 'keydown') this.socket.emit('input', sequence);
             return true;
         }

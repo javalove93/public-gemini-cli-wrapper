@@ -26,7 +26,8 @@ const uiSettings = window.__GCW_SETTINGS__ || {};
 console.log('[DEBUG] UI Settings loaded from server:', uiSettings);
 
 async function saveUiSetting(key, value) {
-    uiSettings[key] = String(value);
+    uiSettings[key] = String(value); // 로컬 캐시 즉시 업데이트
+    console.log(`[DEBUG-UI] Saving UI setting: ${key} = ${value}`);
     try {
         await fetch(getApiPath('/api/ui-settings'), {
             method: 'POST',
@@ -208,15 +209,9 @@ function createTerminalManager() {
         socket: socket,
         getUiSetting: getUiSetting,
         saveUiSetting: saveUiSetting,
-        customShortcut: shortcuts.custom,
-        customOShortcut: shortcuts.customO,
-        customHomeShortcut: shortcuts.home,
-        customEndShortcut: shortcuts.end,
-        customPrefixShortcut: shortcuts.prefix,
-        customPasteShortcut: shortcuts.paste,
-        customSttShortcut: shortcuts.stt,
-        customSttShortcut2: shortcuts.stt2,
+        shortcuts: shortcuts, // 전체 shortcuts 객체 통째로 전달
         optMapStt: checkboxOpts.optMapStt,
+        optMapSttCancel: checkboxOpts.optMapSttCancel,
         sttManager: sttManager,
         onPwdSyncTrigger: () => {
             if (autoSyncTimeout) clearTimeout(autoSyncTimeout);
@@ -486,6 +481,7 @@ const btnSttToggle = document.getElementById('btn-stt-toggle');
 const sttOverlay = document.getElementById('stt-overlay');
 const sttInterimText = document.getElementById('stt-interim-text');
 const sttStatusIcon = document.getElementById('stt-status-icon');
+const sttStatusText = document.getElementById('stt-status-text');
 
 let sttManager = null;
 if (window.SpeechRecognition || window.webkitSpeechRecognition) {
@@ -494,8 +490,6 @@ if (window.SpeechRecognition || window.webkitSpeechRecognition) {
             // On final result, send to terminal via tmuxManager
             console.log('[STT] Final Result:', finalText);
             if (tmuxManager && finalText) {
-                // Determine if we should auto-enter based on user preference or a toggle.
-                // 터미널에 텍스트만 입력함 (사용자가 확인 후 직접 엔터를 누름)
                 tmuxManager.sendInput(finalText);
             }
         },
@@ -505,6 +499,7 @@ if (window.SpeechRecognition || window.webkitSpeechRecognition) {
                 btnSttToggle.style.backgroundColor = '#ef4444';
                 sttOverlay.style.display = 'block';
                 sttInterimText.textContent = '';
+                sttStatusText.textContent = 'Listening...';
                 sttStatusIcon.style.animation = 'pulse 1.5s infinite';
             } else if (state === 'stopped' || state === 'error') {
                 btnSttToggle.style.backgroundColor = '';
@@ -513,6 +508,9 @@ if (window.SpeechRecognition || window.webkitSpeechRecognition) {
                 if (state === 'error') console.error('[STT] Error:', data);
             } else if (state === 'interim') {
                 sttInterimText.textContent = data;
+            } else if (state === 'cancelling') {
+                sttStatusText.textContent = 'Press again to CANCEL...';
+                sttStatusText.style.color = '#ff5555';
             }
         }
     );
@@ -522,6 +520,15 @@ if (window.SpeechRecognition || window.webkitSpeechRecognition) {
             sttManager.toggle();
         }
     });
+
+    // 설정 변경 시 UI 업데이트 연동
+    const originalSaveUiSetting = window.saveUiSetting;
+    window.saveUiSetting = function(key, value) {
+        if (typeof originalSaveUiSetting === 'function') originalSaveUiSetting(key, value);
+        if (key.startsWith('GCW_UI_STT_SHORTCUT') && uiController) {
+            uiController.updateSttButtonTooltip();
+        }
+    };
 } else {
     btnSttToggle.style.display = 'none';
     console.warn('[STT] Speech Recognition not supported, hiding microphone button.');

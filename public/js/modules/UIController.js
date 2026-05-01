@@ -30,6 +30,7 @@ export class UIController {
         this.closeEnvModal = document.getElementById('close-env-modal');
 
         this.navDropdown = document.getElementById('nav-dropdown');
+        this.btnSttToggle = document.getElementById('btn-stt-toggle');
 
         this.init();
     }
@@ -41,6 +42,31 @@ export class UIController {
         this._bindEnvModal();
         this._bindNavDropdown();
         this._initTheme();
+        this.updateSttButtonTooltip();
+    }
+
+    // STT 버튼 툴팁 업데이트 (단축키 안내 표시)
+    updateSttButtonTooltip() {
+        const terminalManager = this.getTerminalManager ? this.getTerminalManager() : null;
+        if (!this.btnSttToggle || !terminalManager) return;
+        
+        const shortcuts = terminalManager.shortcuts;
+        if (!shortcuts) return;
+
+        const format = (sc) => {
+            if (!sc) return 'Unassigned';
+            const parts = [];
+            if (sc.metaKey) parts.push(navigator.platform.includes('Mac') ? 'Cmd' : 'Win');
+            if (sc.ctrlKey) parts.push('Ctrl');
+            if (sc.altKey) parts.push('Alt');
+            if (sc.shiftKey) parts.push('Shift');
+            parts.push(sc.key.toUpperCase());
+            return parts.join('+');
+        };
+
+        const primary = format(shortcuts.stt);
+        const secondary = shortcuts.stt_2 ? ` / ${format(shortcuts.stt_2)}` : '';
+        this.btnSttToggle.title = `Voice Input (STT) - Click to toggle\nShortcut: ${primary}${secondary}`;
     }
 
     _bindSettingsModal() {

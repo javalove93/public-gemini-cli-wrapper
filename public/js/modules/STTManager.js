@@ -1,10 +1,12 @@
 export class STTManager {
     constructor(onResult, onStateChange) {
+        this.originalOnResult = onResult;
         this.onResult = onResult;
         this.onStateChange = onStateChange;
         this.isRecording = false;
         this.recognition = null;
         this.finalText = '';
+        this.isConfirmingCancel = false;
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
@@ -16,6 +18,8 @@ export class STTManager {
             this.recognition.onstart = () => {
                 this.isRecording = true;
                 this.finalText = '';
+                this.isConfirmingCancel = false;
+                this.onResult = this.originalOnResult; // Restore callback on start
                 if (this.onStateChange) this.onStateChange('recording');
             };
 
@@ -68,6 +72,23 @@ export class STTManager {
     stop() {
         if (this.recognition && this.isRecording) {
             this.recognition.stop();
+        }
+    }
+
+    cancel() {
+        if (this.recognition && this.isRecording) {
+            if (this.isConfirmingCancel) {
+                // Second press: Do actual cancel
+                console.log('[STT] Confirmed cancel.');
+                this.onResult = null; // Disconnect the callback to drop the text
+                this.recognition.stop();
+                this.isConfirmingCancel = false;
+            } else {
+                // First press: Enter confirmation state
+                console.log('[STT] Entering cancel confirmation state.');
+                this.isConfirmingCancel = true;
+                if (this.onStateChange) this.onStateChange('cancelling');
+            }
         }
     }
 

@@ -81,7 +81,9 @@ export class SocketClient {
      */
     getApiPath(endpoint) {
         const cleanEndpoint = endpoint.startsWith("/") ? endpoint.substring(1) : endpoint;
-        return this.basePath + cleanEndpoint;
+        // Ensure basePath always has a trailing slash to prevent it being treated as a root-direct path
+        const base = this.basePath.endsWith('/') ? this.basePath : this.basePath + '/';
+        return base + cleanEndpoint;
     }
 }
 

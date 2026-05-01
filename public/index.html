@@ -25,7 +25,8 @@
             <div id="sidebar-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <span style="flex-shrink: 0; margin-right: auto;">File Explorer</span>
                 <div style="display: flex; gap: 8px; flex-shrink: 0;">
-                    <button id="btn-file-tree-style" title="Toggle File Tree Style (Alpha -> Mid-Truncate -> Recent)" style="background:none; color:#569cd6; border:none; padding:0; cursor:pointer; font-size:11px; text-decoration:underline;">Style</button>
+                    <button id="btn-file-sort" title="Toggle Sort (Alphabetical ↔ Recent Date)" style="background:none; color:#569cd6; border:none; padding:0; cursor:pointer; font-size:11px; text-decoration:underline;">Sort</button>
+                    <button id="btn-file-truncate" title="Toggle Name Display (End... ↔ Mid...)" style="background:none; color:#569cd6; border:none; padding:0; cursor:pointer; font-size:11px; text-decoration:underline;">Truncate</button>
                     <button id="btn-open-viewer-main" title="Open selected file in Viewer" style="background:none; color:#569cd6; border:none; padding:0; cursor:pointer; font-size:11px; text-decoration:underline;">Open</button>
                 </div>
             </div>
@@ -124,43 +125,49 @@
             <div class="settings-group">
                 <label class="settings-label">
                     <input type="checkbox" id="opt-cmd-y">
-                    Map <button id="record-custom-shortcut" class="shortcut-btn" title="Click to record shortcut">Cmd+Y</button> to Ctrl+Y
+                    Map <button id="record-custom-shortcut" class="shortcut-btn" title="Primary shortcut">Cmd+Y</button> / <button id="record-custom-shortcut-2" class="shortcut-btn" title="Secondary shortcut">Unassigned</button> to Ctrl+Y
                 </label>
             </div>
             <div class="settings-group">
                 <label class="settings-label">
                     <input type="checkbox" id="opt-cmd-o">
-                    Map <button id="record-o-shortcut" class="shortcut-btn" title="Click to record shortcut">Cmd+O</button> to Ctrl+O
+                    Map <button id="record-o-shortcut" class="shortcut-btn" title="Primary shortcut">Cmd+O</button> / <button id="record-o-shortcut-2" class="shortcut-btn" title="Secondary shortcut">Unassigned</button> to Ctrl+O
                 </label>
             </div>
             <div class="settings-group">
                 <label class="settings-label">
                     <input type="checkbox" id="opt-map-home">
-                    Map <button id="record-home-shortcut" class="shortcut-btn" title="Click to record shortcut">Cmd+Left</button> to Home
+                    Map <button id="record-home-shortcut" class="shortcut-btn" title="Primary shortcut">Cmd+Left</button> / <button id="record-home-shortcut-2" class="shortcut-btn" title="Secondary shortcut">Unassigned</button> to Home
                 </label>
             </div>
             <div class="settings-group">
                 <label class="settings-label">
                     <input type="checkbox" id="opt-map-end">
-                    Map <button id="record-end-shortcut" class="shortcut-btn" title="Click to record shortcut">Cmd+Right</button> to End
+                    Map <button id="record-end-shortcut" class="shortcut-btn" title="Primary shortcut">Cmd+Right</button> / <button id="record-end-shortcut-2" class="shortcut-btn" title="Secondary shortcut">Unassigned</button> to End
                 </label>
             </div>
             <div class="settings-group">
                 <label class="settings-label">
                     <input type="checkbox" id="opt-map-prefix">
-                    Map <button id="record-prefix-shortcut" class="shortcut-btn" title="Click to record shortcut">Ctrl+B</button> to Ctrl+B (Tmux Prefix)
+                    Map <button id="record-prefix-shortcut" class="shortcut-btn" title="Primary shortcut">Ctrl+B</button> / <button id="record-prefix-shortcut-2" class="shortcut-btn" title="Secondary shortcut">Unassigned</button> to Tmux Prefix
                 </label>
             </div>
             <div class="settings-group">
                 <label class="settings-label">
                     <input type="checkbox" id="opt-map-paste">
-                    Map <button id="record-paste-shortcut" class="shortcut-btn" title="Click to record shortcut">Cmd+V</button> to Paste
+                    Map <button id="record-paste-shortcut" class="shortcut-btn" title="Primary shortcut">Cmd+V</button> / <button id="record-paste-shortcut-2" class="shortcut-btn" title="Secondary shortcut">Unassigned</button> to Paste
                 </label>
             </div>
             <div class="settings-group">
                 <label class="settings-label">
                     <input type="checkbox" id="opt-map-stt" checked>
-                    Map <button id="record-stt-shortcut" class="shortcut-btn" title="Click to record shortcut 1">Alt+Z</button> or <button id="record-stt-shortcut-2" class="shortcut-btn" title="Click to record shortcut 2">Unassigned</button> to toggle Voice Input (STT)
+                    Map <button id="record-stt-shortcut" class="shortcut-btn" title="Primary shortcut">Alt+Z</button> / <button id="record-stt-shortcut-2" class="shortcut-btn" title="Secondary shortcut">Unassigned</button> to Voice Input (STT)
+                </label>
+            </div>
+            <div class="settings-group">
+                <label class="settings-label">
+                    <input type="checkbox" id="opt-map-stt-cancel" checked>
+                    Map <button id="record-stt-cancel-shortcut" class="shortcut-btn" title="Primary shortcut">Alt+C</button> / <button id="record-stt-cancel-shortcut-2" class="shortcut-btn" title="Secondary shortcut">Unassigned</button> to Cancel Voice Input
                 </label>
             </div>
             <div class="settings-group">

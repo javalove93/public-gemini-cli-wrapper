@@ -5,6 +5,7 @@ export class SidebarManager {
         this.tmuxManager = options.tmuxManager;
         this.socket = options.socket;
         this.getUiSetting = options.getUiSetting;
+        this.saveUiSetting = options.saveUiSetting; // 누락된 할당 추가
         this.getApiPath = options.getApiPath; // 추가됨
         
         // 콜백 함수
@@ -17,7 +18,8 @@ export class SidebarManager {
         this.btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
         this.sidebar = document.getElementById('sidebar');
         this.contextMenu = document.getElementById('context-menu');
-        this.btnFileTreeStyle = document.getElementById('btn-file-tree-style');
+        this.btnFileSort = document.getElementById('btn-file-sort');
+        this.btnFileTruncate = document.getElementById('btn-file-truncate');
 
         // 컨텍스트 메뉴 액션 버튼 캐싱 (실제 HTML ID로 매핑)
         this.ctxDownload = document.getElementById('menu-download');
@@ -34,6 +36,8 @@ export class SidebarManager {
     }
 
     init() {
+        this._initSortButton();
+        this._initTruncateButton();
         this._bindEvents();
         
         // 전역 클릭 시 컨텍스트 메뉴 숨기기
@@ -42,6 +46,75 @@ export class SidebarManager {
                 this.contextMenu.classList.add('hidden');
             }
         });
+    }
+
+    _initSortButton() {
+        if (!this.btnFileSort) return;
+
+        const modes = ['0', '2']; // 0: name, 2: date (to keep backward compatibility with legacy STYLE key)
+        const icons = ['Aa', '🕒'];
+        const titles = ['Sort: Alphabetical', 'Sort: Recent Date'];
+        
+        // Use the legacy key GCW_UI_FILE_TREE_STYLE for sorting
+        let savedMode = this.getUiSetting ? (this.getUiSetting('GCW_UI_FILE_TREE_STYLE') || '0') : '0';
+        // Fallback: If it was '1' (legacy mid-truncate), treat it as '0' for sorting purposes
+        if (savedMode === '1') savedMode = '0';
+        
+        let initialIndex = modes.indexOf(savedMode) !== -1 ? modes.indexOf(savedMode) : 0;
+        
+        this.btnFileSort.textContent = icons[initialIndex];
+        this.btnFileSort.title = titles[initialIndex];
+
+        this.btnFileSort.onclick = () => {
+            let currentMode = this.getUiSetting ? (this.getUiSetting('GCW_UI_FILE_TREE_STYLE') || '0') : '0';
+            if (currentMode === '1') currentMode = '0';
+            
+            let nextIndex = (modes.indexOf(currentMode) + 1) % 2;
+            let nextMode = modes[nextIndex];
+            
+            if (this.saveUiSetting) {
+                this.saveUiSetting('GCW_UI_FILE_TREE_STYLE', nextMode);
+            }
+            
+            this.btnFileSort.textContent = icons[nextIndex];
+            this.btnFileSort.title = titles[nextIndex];
+            
+            if (this.fileManager && this.fileManager.currentDir !== undefined) {
+                this.loadFileTree(this.fileManager.currentDir);
+            }
+        };
+    }
+
+    _initTruncateButton() {
+        if (!this.btnFileTruncate) return;
+
+        const modes = ['end', 'mid'];
+        const icons = ['A...', 'A..z'];
+        const titles = ['Truncate: End (CSS default)', 'Truncate: Middle'];
+        
+        // Define a completely new key for truncation
+        let savedMode = this.getUiSetting ? (this.getUiSetting('GCW_UI_FILE_TREE_TRUNCATE') || 'end') : 'end';
+        let initialIndex = modes.indexOf(savedMode) !== -1 ? modes.indexOf(savedMode) : 0;
+        
+        this.btnFileTruncate.textContent = icons[initialIndex];
+        this.btnFileTruncate.title = titles[initialIndex];
+
+        this.btnFileTruncate.onclick = () => {
+            let currentMode = this.getUiSetting ? (this.getUiSetting('GCW_UI_FILE_TREE_TRUNCATE') || 'end') : 'end';
+            let nextIndex = (modes.indexOf(currentMode) + 1) % 2;
+            let nextMode = modes[nextIndex];
+            
+            if (this.saveUiSetting) {
+                this.saveUiSetting('GCW_UI_FILE_TREE_TRUNCATE', nextMode);
+            }
+            
+            this.btnFileTruncate.textContent = icons[nextIndex];
+            this.btnFileTruncate.title = titles[nextIndex];
+            
+            if (this.fileManager && this.fileManager.currentDir !== undefined) {
+                this.loadFileTree(this.fileManager.currentDir);
+            }
+        };
     }
 
     _bindEvents() {
@@ -179,10 +252,11 @@ export class SidebarManager {
             }
 
             // 스타일 모드 읽기
-            let fileTreeStyleMode = parseInt(this.getUiSetting ? this.getUiSetting('GCW_UI_FILE_TREE_STYLE') || '0' : '0', 10);
+            let sortMode = this.getUiSetting ? (this.getUiSetting('GCW_UI_FILE_TREE_STYLE') || '0') : '0';
+            let truncateMode = this.getUiSetting ? (this.getUiSetting('GCW_UI_FILE_TREE_TRUNCATE') || 'end') : 'end';
             let sortedFiles = [...files];
 
-            if (fileTreeStyleMode === 2) {
+            if (sortMode === '2') {
                 // 최신날짜 순 정렬
                 sortedFiles.sort((a, b) => {
                     if (a.isDirectory && !b.isDirectory) return -1;
@@ -217,8 +291,8 @@ export class SidebarManager {
                 div.className = `file-item ${f.isDirectory ? 'dir' : 'file'}`;
                 
                 let displayName = f.name;
-                // Mode 1: 중간 자르기 (Mid-Truncate)
-                if (fileTreeStyleMode === 1 && displayName.length > 25) {
+                // Mode mid: 중간 자르기 (Mid-Truncate)
+                if (truncateMode === 'mid' && displayName.length > 25) {
                     const startLen = 12;
                     const endLen = 10;
                     if (displayName.length > startLen + endLen) {

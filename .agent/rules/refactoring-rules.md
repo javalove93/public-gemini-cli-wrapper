@@ -30,6 +30,6 @@
 *   **중단 및 대기**: Jerry님의 승인이 있을 때까지 절대 다음 체크박스 항목으로 넘어가지 않습니다.
 
 ## 4. 자체 검증 및 기록 (Self-Verification)
-*   **린트(Lint) 강제 실행**: 수정 직후에는 반드시 `cd gemini-cli-wrapper && npm run lint` 명령어를 통해 문법 무결성을 자체 검증해야 합니다. 에러 발생 시 즉시 수정하십시오.
-*   **Audit Trail 기록**: 수정 전/후의 린트 결과를 프로젝트 루트의 `lint_history/YYMMDD-HHMM-[TaskTitle].log` 파일로 저장하여 작업의 안정성을 증명하십시오.
+*   **린트(Lint) 강제 실행**: 수정 직후에는 반드시 프로젝트 루트에서 `.agent/tools/run_lint.sh` 명령어를 실행하여 문법 무결성을 자체 검증하고 결과를 로깅해야 합니다. 에러 발생 시 즉시 수정하십시오.
+*   **Audit Trail 기록**: 위 스크립트를 실행하면 `lint_history/YYMMDD-HHMM-lint-check.log` 파일로 린트 결과가 자동 저장되어 작업의 안정성을 증명할 수 있습니다.
 *   **상태 동기화**: `chat_history/`의 관련 문서 상태를 실시간으로 업데이트하여 작업의 진행도를 투명하게 관리하십시오.

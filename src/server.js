@@ -28,7 +28,7 @@ registerFileApiRoutes(app);
  * .gcw.conf에서 UI 설정을 읽어오는 유틸리티
  */
 function getUiSettings() {
-    const cwd = process.cwd();
+    const cwd = process.env.GCW_HOME || process.cwd();
     const configPath = path.join(cwd, '.gcw.conf');
     const settings = {};
     
@@ -139,7 +139,7 @@ app.use((req, res, next) => {
 // 3. UI 설정 저장 API
 app.post('/api/ui-settings', (req, res) => {
     const newSettings = req.body;
-    const configPath = path.join(process.cwd(), '.gcw.conf');
+    const configPath = path.join(process.env.GCW_HOME || process.cwd(), '.gcw.conf');
     let content = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
     let lines = content.split('\n');
 
@@ -179,7 +179,7 @@ app.get('/api/backend/pwd', (req, res) => {
 
 // API: .gcw.conf 환경 변수 조회 (보안 마스킹 처리)
 app.get('/api/gcw-env', (req, res) => {
-    const configPath = path.join(process.cwd(), '.gcw.conf');
+    const configPath = path.join(process.env.GCW_HOME || process.cwd(), '.gcw.conf');
     const result = {};
     if (fs.existsSync(configPath)) {
         try {
