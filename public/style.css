@@ -1005,3 +1005,10 @@ body.light-theme .shortcut-btn {
     background-color: #ff4d4d;
     color: white;
 }
+
+/* STT Overlay Pulse Animation */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}

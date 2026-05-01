@@ -18,7 +18,8 @@ function debugLog(...args) {
 
 const app = express();
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // 1. 파일 시스템 관련 HTTP API 라우트 등록 (루트 기반)
 registerFileApiRoutes(app);
@@ -120,8 +121,13 @@ app.use((req, res, next) => {
                 // 텍스트 계열은 뷰어로 리다이렉트
                 return res.redirect(`/viewer.html?path=${encodeURIComponent(filePath)}`);
             } else if (imageExts.includes(ext)) {
-                // 이미지는 직접 전송 (이전 TR 성과인 { root: '/' } 옵션 활용)
-                return res.sendFile(absPath, { root: '/' });
+                // 이미지는 직접 전송 (Express sendFile의 dotfile 차단 우회를 위해 stream 사용)
+                const mimeTypes = {
+                    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+                    '.gif': 'image/gif', '.svg': 'image/svg+xml', '.webp': 'image/webp'
+                };
+                res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+                return fs.createReadStream(absPath).pipe(res);
             }
         }
     } catch (e) {
@@ -276,6 +282,20 @@ io.on('connection', (socket) => {
         if (dirWatcher) dirWatcher.close();
         if (dirWatchTimeout) clearTimeout(dirWatchTimeout);
     });
+});
+
+// JSON 파싱 에러나 용량 초과(413) 등의 에러를 JSON 형태로 반환하기 위한 글로벌 에러 핸들러
+app.use((err, req, res, next) => {
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        return res.status(400).json({ error: 'Invalid JSON payload' });
+    }
+    if (err.type === 'entity.too.large') {
+        return res.status(413).json({ error: 'Payload too large (limit: 50MB)' });
+    }
+    if (req.path.startsWith('/api/')) {
+        return res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
+    }
+    next(err);
 });
 
 server.listen(PORT, HOST, () => {

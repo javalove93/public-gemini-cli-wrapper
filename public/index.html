@@ -47,6 +47,14 @@
                 <p style="margin-bottom: 25px; color: #ddd;">Another device or tab has attached to this session.</p>
                 <button id="btn-reconnect" style="padding: 10px 20px; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Reconnect (Take Control)</button>
             </div>
+            
+            <div id="stt-overlay" style="display: none; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.85); border: 1px solid #3b82f6; border-radius: 8px; padding: 15px 20px; z-index: 900; color: #fff; min-width: 300px; max-width: 80%; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                    <span id="stt-status-icon" style="color: #ef4444; margin-right: 8px;">🔴</span>
+                    <span id="stt-status-text" style="font-size: 12px; color: #aaa; font-weight: bold;">Listening (Web Speech API)...</span>
+                </div>
+                <div id="stt-interim-text" style="font-size: 14px; line-height: 1.4; word-break: keep-all; color: #fff;"></div>
+            </div>
             <div id="tmux-window-tabs-bar" class="tabs-container">
                 <div id="tmux-window-tabs" class="tabs-list"></div>
                 <button id="btn-refresh-windows" title="Refresh Tmux Windows" class="tab-action-btn">🔄</button>
@@ -79,6 +87,7 @@
                     <button id="btn-reset-clients" title="Reset Tmux Clients (꼬인 세션 리셋)" class="split-btn" style="display:none; color: #ff5555;">🔄</button>
                 </div>
                 <div class="header-center">
+                    <button id="btn-stt-toggle" title="Voice Input (STT) - Click to toggle, hold for high accuracy" class="header-btn" style="border-radius: 50%; padding: 4px 8px; margin-right: 8px;">🎤</button>
                     <select id="recent-images-dropdown" class="header-select" title="최근 업로드된 이미지 (클립보드)">
                         <option value="">최근 이미지 없음</option>
                     </select>
@@ -146,6 +155,12 @@
                 <label class="settings-label">
                     <input type="checkbox" id="opt-map-paste">
                     Map <button id="record-paste-shortcut" class="shortcut-btn" title="Click to record shortcut">Cmd+V</button> to Paste
+                </label>
+            </div>
+            <div class="settings-group">
+                <label class="settings-label">
+                    <input type="checkbox" id="opt-map-stt" checked>
+                    Map <button id="record-stt-shortcut" class="shortcut-btn" title="Click to record shortcut 1">Alt+Z</button> or <button id="record-stt-shortcut-2" class="shortcut-btn" title="Click to record shortcut 2">Unassigned</button> to toggle Voice Input (STT)
                 </label>
             </div>
             <div class="settings-group">

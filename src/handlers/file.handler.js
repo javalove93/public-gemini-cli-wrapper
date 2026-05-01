@@ -135,6 +135,16 @@ function registerFileApiRoutes(app) {
         }
     });
 
+    // 기본 MIME 타입 맵핑
+    const mimeTypes = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.webp': 'image/webp'
+    };
+
     // API: 저장된 이미지 로드 (CORS 문제 우회용)
     app.get('/api/image', (req, res) => {
         const filePath = req.query.path;
@@ -142,9 +152,15 @@ function registerFileApiRoutes(app) {
 
         const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
 
+        // console.log(`[DEBUG] /api/image request - original: ${filePath}, resolved: ${absolutePath}`);
+
         if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
-            res.sendFile(absolutePath, { root: '/' });
+            const ext = path.extname(absolutePath).toLowerCase();
+            const mimeType = mimeTypes[ext] || 'application/octet-stream';
+            res.setHeader('Content-Type', mimeType);
+            fs.createReadStream(absolutePath).pipe(res);
         } else {
+            // console.log(`[DEBUG] /api/image - File NOT found: ${absolutePath}`);
             res.status(404).send('Image not found');
         }
     });
@@ -153,16 +169,17 @@ function registerFileApiRoutes(app) {
     app.get('/api/download', (req, res) => {
         const filePath = req.query.path;
         if (!filePath) return res.status(400).send('Path is required');
-        
+
         const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
-        
+
         if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
-            res.download(absolutePath, path.basename(absolutePath), { root: '/' });
+            res.setHeader('Content-Disposition', `attachment; filename="${path.basename(absolutePath)}"`);
+            res.setHeader('Content-Type', 'application/octet-stream');
+            fs.createReadStream(absolutePath).pipe(res);
         } else {
             res.status(404).send('File not found');
         }
-    });
-}
+    });}
 
 /**
  * 파일 시스템 조작 소켓 이벤트 핸들러

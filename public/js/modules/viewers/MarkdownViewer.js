@@ -65,9 +65,14 @@ export class MarkdownViewer extends SplitViewer {
             }
 
             if (actualHref && !actualHref.startsWith('http') && !actualHref.startsWith('data:')) {
-                const lastSlashIndex = filePath.lastIndexOf('/');
-                const currentDir = lastSlashIndex !== -1 ? filePath.substring(0, lastSlashIndex) : '';
-                const absoluteImagePath = currentDir ? `${currentDir}/${actualHref}` : actualHref;
+                let absoluteImagePath;
+                if (actualHref.startsWith('/')) {
+                    absoluteImagePath = actualHref;
+                } else {
+                    const lastSlashIndex = filePath.lastIndexOf('/');
+                    const currentDir = lastSlashIndex !== -1 ? filePath.substring(0, lastSlashIndex) : '';
+                    absoluteImagePath = currentDir ? `${currentDir}/${actualHref}` : actualHref;
+                }
                 actualHref = socketClient.getApiPath(`/api/image?path=${encodeURIComponent(absoluteImagePath)}`);
             }
             

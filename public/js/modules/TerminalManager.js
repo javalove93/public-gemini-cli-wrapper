@@ -32,9 +32,55 @@ export class TerminalManager {
         this.customEndShortcut = options.customEndShortcut;
         this.customPrefixShortcut = options.customPrefixShortcut;
         this.customPasteShortcut = options.customPasteShortcut;
+        this.customSttShortcut = options.customSttShortcut;
+        this.customSttShortcut2 = options.customSttShortcut2;
+        this.optMapStt = options.optMapStt;
+        this.sttManager = options.sttManager;
         
-        this.lightThemeColors = options.lightThemeColors;
-        this.darkThemeColors = options.darkThemeColors;
+        // 내장 테마 색상 정의
+        this.lightThemeColors = {
+            background: '#f5f5f5',
+            foreground: '#333333',
+            cursor: '#333333',
+            black: '#000000',
+            red: '#cd3131',
+            green: '#00bc00',
+            yellow: '#949800',
+            blue: '#0451a5',
+            magenta: '#bc05bc',
+            cyan: '#0598bc',
+            white: '#555555',
+            brightBlack: '#666666',
+            brightRed: '#cd3131',
+            brightGreen: '#14ce14',
+            brightYellow: '#b5ba00',
+            brightBlue: '#0451a5',
+            brightMagenta: '#bc05bc',
+            brightCyan: '#0598bc',
+            brightWhite: '#a5a5a5'
+        };
+
+        this.darkThemeColors = {
+            background: '#000000',
+            foreground: '#ffffff',
+            cursor: '#ffffff',
+            black: '#000000',
+            red: '#f14c4c',
+            green: '#23d18b',
+            yellow: '#f5f543',
+            blue: '#3b8eea',
+            magenta: '#d670d6',
+            cyan: '#29b8db',
+            white: '#ffffff',
+            brightBlack: '#a5a5a5',
+            brightRed: '#f14c4c',
+            brightGreen: '#23d18b',
+            brightYellow: '#f5f543',
+            brightBlue: '#3b8eea',
+            brightMagenta: '#d670d6',
+            brightCyan: '#29b8db',
+            brightWhite: '#ffffff'
+        };
 
         this.onPwdSyncTrigger = options.onPwdSyncTrigger || (() => {});
     }
@@ -125,6 +171,28 @@ export class TerminalManager {
                     window.lastCustomPasteTime = Date.now();
                     this._pasteFromClipboard();
                 }
+                return false;
+            }
+
+            // STT shortcut (Special handling)
+            if (this.optMapStt && this.optMapStt.checked && 
+                (this._matchShortcut(e, this.customSttShortcut) || this._matchShortcut(e, this.customSttShortcut2))) {
+                if (e.type === 'keydown') {
+                    if (this.sttManager) {
+                        this.sttManager.toggle();
+                    } else {
+                        console.warn('[STT] Speech Recognition not supported or not initialized.');
+                    }
+                }
+                return false;
+            }
+
+            // STT 진행 중 Enter 키 입력 시 즉시 종료 (최종 인식된 텍스트 전송 트리거)
+            if (e.key === 'Enter' && !e.shiftKey && this.sttManager && this.sttManager.isRecording) {
+                if (e.type === 'keydown') {
+                    this.sttManager.stop();
+                }
+                // 기존 터미널 Enter 로직을 타지 않게 막음
                 return false;
             }
 
