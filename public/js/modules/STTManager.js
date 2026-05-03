@@ -38,19 +38,23 @@ export class STTManager {
                 this.isRecording = false;
                 if (this.onStateChange) this.onStateChange('stopped');
                 
-                // 브라우저의 비동기 onresult 처리를 완벽히 기다리기 위해 0.3초 대기 후 전송
+                // Fallback 타이머: onresult가 오지 않을 경우(아무 말 안하고 키만 쳤을 때) 대비
+                // 100ms만 대기해도 충분함 (정상적인 STT는 onresult에서 이미 처리됨)
                 setTimeout(() => {
-                    if (this.finalText.trim().length > 0 || this.pendingKeys.length > 0) {
-                        if (this.pendingKeys.length > 0) {
-                            for (let key of this.pendingKeys) {
-                                this.finalText += key;
-                            }
-                            this.pendingKeys = [];
-                        }
-
-                        if (this.onResult) this.onResult(this.finalText.trim());
+                    let result = this.finalText.trim();
+                    
+                    if (this.pendingKeys.length > 0) {
+                        result += this.pendingKeys.join('');
+                        this.pendingKeys = [];
                     }
-                }, 300);
+
+                    if (result.length > 0) {
+                        if (this.onResult) this.onResult(result);
+                    }
+                    
+                    this.finalText = '';
+                    this.currentInterim = '';
+                }, 100);
             };
 
             this.recognition.onresult = (event) => {
@@ -66,7 +70,20 @@ export class STTManager {
                 }
 
                 this.currentInterim = interimTranscript;
-                this.finalText += finalTranscript;
+                
+                if (finalTranscript) {
+                    this.finalText += finalTranscript;
+                    
+                    // 핵심 로직: 최종 텍스트가 도착했을 때 대기 중인 키보드 입력(마침표 등)이 있다면 즉시 붙여서 전송
+                    // (isRecording 상태와 무관하게, 마침표가 예약되어 있다면 무조건 전송)
+                    if (this.pendingKeys.length > 0) {
+                        let result = this.finalText.trim() + this.pendingKeys.join('');
+                        this.pendingKeys = [];
+                        if (this.onResult) this.onResult(result);
+                        this.finalText = ''; // 전송 후 초기화
+                    }
+                }
+
                 if (this.onStateChange) {
                     this.onStateChange('interim', this.finalText + this.currentInterim);
                 }

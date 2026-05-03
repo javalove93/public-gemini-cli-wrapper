@@ -167,16 +167,25 @@ export class TerminalManager {
                 return false;
             }
 
-            // STT Punctuation Finalizer (마침표, 쉼표, 물음표 입력 시 구두점 붙이고 즉시 STT 종료)
+            // STT Punctuation Finalizer (마침표, 쉼표, 물음표 입력 시 어펜드 하지 않고 즉시 STT 종료 후 소켓으로 딜레이 전송)
             if (this.sttManager && this.sttManager.isRecording) {
                 // Ctrl, Alt, Meta 조합은 제외하되, '?' 입력을 위해 Shift는 허용
                 if (!e.ctrlKey && !e.metaKey && !e.altKey) {
                     const isPunctuation = e.key === '.' || e.key === ',' || e.key === '?';
                     if (isPunctuation) {
                         if (e.type === 'keydown') {
-                            console.log('[STT] Finalizing by Punctuation in Terminal:', e.key);
-                            this.sttManager.appendManualText(e.key);
+                            console.log('[STT] Stopping STT and scheduling punctuation:', e.key);
+                            this.sttManager.stop(); // 1. STT 텍스트 완성 및 전송 트리거
+                            
+                            // 2. STT 텍스트가 서버에 완전히 붙여넣기 될 때까지 약간 대기한 후, 구두점만 따로 소켓으로 전송
+                            setTimeout(() => {
+                                console.log('[STT] Emitting delayed punctuation:', e.key);
+                                this.socket.emit('input', e.key);
+                            }, 400); // 400ms 딜레이 (STT onend 대기 100ms + 여유)
                         }
+                        // 브라우저의 다른 전역 단축키(도움말 등) 호출을 막기 위해 전파 차단
+                        if (e.preventDefault) e.preventDefault();
+                        if (e.stopPropagation) e.stopPropagation();
                         return false;
                     }
                 }
@@ -230,6 +239,11 @@ export class TerminalManager {
 
         // 데이터 송신
         this.term.onData(data => {
+            // STT 작동 중에는 사용자의 타이핑이 터미널(서버)로 넘어가는 것을 원천 차단
+            if (this.sttManager && this.sttManager.isRecording) {
+                console.log('[STT] Socket input blocked while recording.');
+                return;
+            }
             this.socket.emit('input', data);
         });
 
