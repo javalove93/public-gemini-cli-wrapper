@@ -20,6 +20,15 @@ Gemini CLI를 브라우저 및 모바일 환경에서 편리하게 사용할 수
      controls="controls" style="max-width: 100%; height: auto;">
 </video>
 
+*  나머지 영상
+     *  https://youtu.be/OrB4tIcn-Do - 리팩토링 규칙논의
+     *  https://youtu.be/z5kELIYIj30 - 리팩토링 도구 논의
+     *  https://youtu.be/n-GWdYEBBn8 - 추가 리팩토링 대상 결정
+     *  https://youtu.be/VO51VLH2MLc - 보조 세션을 통한 시스템 모니터링 및 코드 리뷰
+     *  https://youtu.be/8tw2Gujq5WE - 하네스 규칙을 피드백으로 추가
+     *  https://youtu.be/AxD_h1U9Eao - 보조 세션에게 새로운 기능에 대한 작업 계획서 작성 지시
+     *  https://youtu.be/HiByyLv-6-o - 나머지 리팩토링 작업
+     *  https://youtu.be/lQstH5bhzes - AI 의견 개진 방식을 하네스 엔지니어링 피드백에 반영
 
 
 
