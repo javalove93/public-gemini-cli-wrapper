@@ -80,13 +80,6 @@ export class STTManager {
         this.pendingKeys.push(key);
         this.isConfirmingCancel = false;
 
-        // stop() 호출 시 브라우저가 아직 final 처리를 못 한 interim 텍스트를 날려버릴 수 있으므로,
-        // 현재까지 화면에 보이던 interim 텍스트를 finalText로 강제 병합하여 유실 방지.
-        if (this.currentInterim) {
-            this.finalText += this.currentInterim;
-            this.currentInterim = '';
-        }
-
         // 구두점이 입력되면 완전히 종료 (Enter 키 역할)
         this.stop();
     }
