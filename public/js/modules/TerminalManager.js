@@ -167,6 +167,21 @@ export class TerminalManager {
                 return false;
             }
 
+            // STT Punctuation Finalizer (마침표, 쉼표, 물음표 입력 시 구두점 붙이고 즉시 STT 종료)
+            if (this.sttManager && this.sttManager.isRecording) {
+                // Ctrl, Alt, Meta 조합은 제외하되, '?' 입력을 위해 Shift는 허용
+                if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+                    const isPunctuation = e.key === '.' || e.key === ',' || e.key === '?';
+                    if (isPunctuation) {
+                        if (e.type === 'keydown') {
+                            console.log('[STT] Finalizing by Punctuation in Terminal:', e.key);
+                            this.sttManager.appendManualText(e.key);
+                        }
+                        return false;
+                    }
+                }
+            }
+
             if (e.key === 'Enter' && !e.shiftKey && e.type === 'keydown') {
                 if (this.onPwdSyncTrigger) this.onPwdSyncTrigger();
             }

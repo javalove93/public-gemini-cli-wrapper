@@ -6,7 +6,11 @@ export class STTManager {
         this.isRecording = false;
         this.recognition = null;
         this.finalText = '';
+        this.currentInterim = '';
         this.isConfirmingCancel = false;
+        
+        // 플러시 로직을 위한 상태
+        this.pendingKeys = [];
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
@@ -18,6 +22,7 @@ export class STTManager {
             this.recognition.onstart = () => {
                 this.isRecording = true;
                 this.finalText = '';
+                this.currentInterim = '';
                 this.isConfirmingCancel = false;
                 this.onResult = this.originalOnResult; // Restore callback on start
                 if (this.onStateChange) this.onStateChange('recording');
@@ -30,6 +35,15 @@ export class STTManager {
             };
 
             this.recognition.onend = () => {
+                // 브라우저에 따라 onresult가 onend 직전에 한 번 더 호출될 수 있음.
+                // onresult가 끝난 최종 finalText 뒤에 밀려있는 구두점을 붙임.
+                if (this.pendingKeys.length > 0) {
+                    for (let key of this.pendingKeys) {
+                        this.finalText += key;
+                    }
+                    this.pendingKeys = [];
+                }
+
                 this.isRecording = false;
                 if (this.onStateChange) this.onStateChange('stopped');
                 if (this.finalText.trim().length > 0) {
@@ -49,14 +63,32 @@ export class STTManager {
                     }
                 }
 
+                this.currentInterim = interimTranscript;
                 this.finalText += finalTranscript;
                 if (this.onStateChange) {
-                    this.onStateChange('interim', this.finalText + interimTranscript);
+                    this.onStateChange('interim', this.finalText + this.currentInterim);
                 }
             };
         } else {
             console.warn('[STT] Web Speech API is not supported in this browser.');
         }
+    }
+
+    appendManualText(key) {
+        if (!this.isRecording) return;
+        
+        this.pendingKeys.push(key);
+        this.isConfirmingCancel = false;
+
+        // stop() 호출 시 브라우저가 아직 final 처리를 못 한 interim 텍스트를 날려버릴 수 있으므로,
+        // 현재까지 화면에 보이던 interim 텍스트를 finalText로 강제 병합하여 유실 방지.
+        if (this.currentInterim) {
+            this.finalText += this.currentInterim;
+            this.currentInterim = '';
+        }
+
+        // 구두점이 입력되면 완전히 종료 (Enter 키 역할)
+        this.stop();
     }
 
     start() {
