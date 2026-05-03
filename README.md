@@ -16,7 +16,9 @@ Gemini CLI를 브라우저 및 모바일 환경에서 편리하게 사용할 수
 <img width="1890" height="1009" alt="snap0230" src="https://github.com/user-attachments/assets/c4cc3c53-6a5b-4b72-8273-1ae29933140d" />
 
 ### 음성을 이용한 프롬프트 입력
-* https://github.com/user-attachments/assets/3abfbe68-a23a-4280-92c1-5a963ecc3198
+<video src="https://github.com/user-attachments/assets/3abfbe68-a23a-4280-92c1-5a963ecc3198"
+     controls="controls" style="max-width: 100%; height: auto;">
+</video>
 
 
 
