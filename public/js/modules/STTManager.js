@@ -38,17 +38,19 @@ export class STTManager {
                 this.isRecording = false;
                 if (this.onStateChange) this.onStateChange('stopped');
                 
-                if (this.finalText.trim().length > 0 || this.pendingKeys.length > 0) {
-                    // 브라우저의 최종 onresult가 끝난 후, 전송 직전에 밀려있는 구두점을 붙임.
-                    if (this.pendingKeys.length > 0) {
-                        for (let key of this.pendingKeys) {
-                            this.finalText += key;
+                // 브라우저의 비동기 onresult 처리를 완벽히 기다리기 위해 0.3초 대기 후 전송
+                setTimeout(() => {
+                    if (this.finalText.trim().length > 0 || this.pendingKeys.length > 0) {
+                        if (this.pendingKeys.length > 0) {
+                            for (let key of this.pendingKeys) {
+                                this.finalText += key;
+                            }
+                            this.pendingKeys = [];
                         }
-                        this.pendingKeys = [];
-                    }
 
-                    if (this.onResult) this.onResult(this.finalText.trim());
-                }
+                        if (this.onResult) this.onResult(this.finalText.trim());
+                    }
+                }, 300);
             };
 
             this.recognition.onresult = (event) => {
