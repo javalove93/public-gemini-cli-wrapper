@@ -35,18 +35,18 @@ export class STTManager {
             };
 
             this.recognition.onend = () => {
-                // 브라우저에 따라 onresult가 onend 직전에 한 번 더 호출될 수 있음.
-                // onresult가 끝난 최종 finalText 뒤에 밀려있는 구두점을 붙임.
-                if (this.pendingKeys.length > 0) {
-                    for (let key of this.pendingKeys) {
-                        this.finalText += key;
-                    }
-                    this.pendingKeys = [];
-                }
-
                 this.isRecording = false;
                 if (this.onStateChange) this.onStateChange('stopped');
-                if (this.finalText.trim().length > 0) {
+                
+                if (this.finalText.trim().length > 0 || this.pendingKeys.length > 0) {
+                    // 브라우저의 최종 onresult가 끝난 후, 전송 직전에 밀려있는 구두점을 붙임.
+                    if (this.pendingKeys.length > 0) {
+                        for (let key of this.pendingKeys) {
+                            this.finalText += key;
+                        }
+                        this.pendingKeys = [];
+                    }
+
                     if (this.onResult) this.onResult(this.finalText.trim());
                 }
             };
