@@ -1,5 +1,7 @@
 # Gemini CLI Wrapper (gcw)
 
+*Read this in other languages: [English](README-en.md), [한국어](README.md)*
+
 Gemini CLI를 브라우저 및 모바일 환경에서 편리하게 사용할 수 있도록 도와주는 **Tmux 기반 웹 인터페이스(WebUI) 래퍼**입니다. 터미널의 강력함과 웹의 편의성을 결합하여 어디서든 중단 없는 개발 환경을 제공합니다.
 
 ## ✨ 주요 기능

@@ -1,5 +1,7 @@
 # Gemini CLI Wrapper (gcw)
 
+*Read this in other languages: [English](README-en.md), [한국어](README.md)*
+
 A **Tmux-based Web UI wrapper** designed to make the Gemini CLI easily accessible from web browsers and mobile environments. It combines the power of the terminal with the convenience of the web, providing an uninterrupted development experience anywhere.
 
 ## ✨ Key Features
