@@ -7,6 +7,7 @@ const fs = require('fs');
 // 기능별 핸들러 임포트
 const { handleAuth } = require('./handlers/auth.handler');
 const { registerFileApiRoutes, registerFileHandlers } = require('./handlers/file.handler');
+const { registerHostFileApi } = require('./handlers/host_file.handler');
 const { TerminalHandler } = require('./handlers/terminal.handler');
 
 const isDebug = process.argv.includes('--debug');
@@ -16,6 +17,44 @@ function debugLog(...args) {
     }
 }
 
+// --- Configuration Migration Logic ---
+// 마스터 서버의 .gcw.conf와 워크스페이스 세션의 .gcw.conf 충돌 방지를 위해
+// 워크스페이스(자식 프로세스) 시작 시 로컬 설정 파일 이름을 .gcw.session.conf로 분리/마이그레이션합니다.
+(function migrateSessionConfig() {
+    const cwd = process.cwd();
+    const sessionConfPath = path.join(cwd, '.gcw.session.conf');
+    const oldConfPath = path.join(cwd, '.gcw.conf');
+
+    if (!fs.existsSync(sessionConfPath) && fs.existsSync(oldConfPath)) {
+        try {
+            const content = fs.readFileSync(oldConfPath, 'utf8');
+            const lines = content.split('\n');
+            const isMasterConfig = lines.some(line => line.trim().startsWith('PROJECT_') || line.trim().startsWith('SERVER_PORTS'));
+
+            if (isMasterConfig) {
+                // 마스터 환경설정 파일에 세션 설정이 섞여 있는 경우
+                // 세션 전용 설정(GCW_UI_ 등)만 추출하여 복사합니다. 원본은 삭제하지 않습니다.
+                const sessionLines = lines.filter(line => {
+                    const t = line.trim();
+                    return t !== '' && !t.startsWith('#') && !t.startsWith('PROJECT_') && !t.startsWith('SERVER_PORTS');
+                });
+                
+                if (sessionLines.length > 0) {
+                    fs.writeFileSync(sessionConfPath, sessionLines.join('\n'));
+                    console.log(`[Config Migration] Extracted session variables from master .gcw.conf to ${sessionConfPath}`);
+                }
+            } else {
+                // 순수 워크스페이스 설정 파일인 경우, 파일명을 변경(이동)합니다.
+                fs.renameSync(oldConfPath, sessionConfPath);
+                console.log(`[Config Migration] Renamed old workspace .gcw.conf to ${sessionConfPath}`);
+            }
+        } catch (e) {
+            console.error('[Config Migration] Failed to migrate configuration:', e);
+        }
+    }
+})();
+// ------------------------------------
+
 const app = express();
 
 app.use(express.json({ limit: '50mb' }));
@@ -23,13 +62,14 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // 1. 파일 시스템 관련 HTTP API 라우트 등록 (루트 기반)
 registerFileApiRoutes(app);
+registerHostFileApi(app);
 
 /**
- * .gcw.conf에서 UI 설정을 읽어오는 유틸리티
+ * .gcw.session.conf에서 UI 설정을 읽어오는 유틸리티
  */
 function getUiSettings() {
-    const cwd = process.env.GCW_HOME || process.cwd();
-    const configPath = path.join(cwd, '.gcw.conf');
+    const cwd = process.cwd();
+    const configPath = path.join(cwd, '.gcw.session.conf');
     const settings = {};
     
     console.log(`[DEBUG-UI] getUiSettings called. __dirname: ${__dirname}, process.cwd(): ${cwd}`);
@@ -139,29 +179,46 @@ app.use((req, res, next) => {
 // 3. UI 설정 저장 API
 app.post('/api/ui-settings', (req, res) => {
     const newSettings = req.body;
-    const configPath = path.join(process.env.GCW_HOME || process.cwd(), '.gcw.conf');
+    const configPath = path.join(process.cwd(), '.gcw.session.conf');
+    
+    console.log(`[DEBUG-UI-SAVE] POST /api/ui-settings called.`);
+    console.log(`[DEBUG-UI-SAVE] Target Config Path: ${configPath}`);
+    console.log(`[DEBUG-UI-SAVE] Payload:`, newSettings);
+
     let content = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
     let lines = content.split('\n');
 
+    let updatedCount = 0;
     Object.keys(newSettings).forEach(key => {
-        if (!key.startsWith('GCW_UI_')) return;
+        if (!key.startsWith('GCW_UI_')) {
+            console.log(`[DEBUG-UI-SAVE] Skipping key (invalid prefix): ${key}`);
+            return;
+        }
         const val = newSettings[key];
         let found = false;
         for (let i = 0; i < lines.length; i++) {
             if (lines[i].trim().startsWith(`${key}=`)) {
                 lines[i] = `${key}=${val}`;
                 found = true;
+                updatedCount++;
                 break;
             }
         }
         if (!found) {
             if (lines.length > 0 && lines[lines.length - 1].trim() !== '') lines.push('');
             lines.push(`${key}=${val}`);
+            updatedCount++;
         }
     });
 
-    fs.writeFileSync(configPath, lines.join('\n'));
-    res.json({ success: true });
+    try {
+        fs.writeFileSync(configPath, lines.join('\n'));
+        console.log(`[DEBUG-UI-SAVE] Successfully saved ${updatedCount} settings to ${configPath}`);
+        res.json({ success: true });
+    } catch (e) {
+        console.error(`[DEBUG-UI-SAVE] FAILED to write file:`, e);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // 4. 기타 시스템 정보 API
@@ -177,9 +234,9 @@ app.get('/api/backend/pwd', (req, res) => {
     res.json({ pwd: process.cwd() });
 });
 
-// API: .gcw.conf 환경 변수 조회 (보안 마스킹 처리)
+// API: .gcw.session.conf 환경 변수 조회 (보안 마스킹 처리)
 app.get('/api/gcw-env', (req, res) => {
-    const configPath = path.join(process.env.GCW_HOME || process.cwd(), '.gcw.conf');
+    const configPath = path.join(process.cwd(), '.gcw.session.conf');
     const result = {};
     if (fs.existsSync(configPath)) {
         try {

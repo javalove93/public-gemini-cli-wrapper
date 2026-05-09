@@ -16,14 +16,14 @@ class TerminalHandler {
     }
 
     /**
-     * .gcw.conf 파일을 읽어 환경 변수를 파싱합니다. (기존 server.js 로직 이관)
+     * .gcw.session.conf 파일을 읽어 환경 변수를 파싱합니다.
      */
     getGcwEnv() {
-        const configPath = path.join(process.cwd(), '.gcw.conf');
+        const configPath = path.join(process.cwd(), '.gcw.session.conf');
         const customEnv = { ...process.env };
         const customVars = {};
 
-        console.log(`[TERM] Checking for .gcw.conf at: ${configPath}`);
+        console.log(`[TERM] Checking for .gcw.session.conf at: ${configPath}`);
 
         if (fs.existsSync(configPath)) {
             try {
@@ -42,12 +42,12 @@ class TerminalHandler {
                         }
                     }
                 });
-                console.log(`[TERM] Loaded ${count} environment variables from .gcw.conf`);
+                console.log(`[TERM] Loaded ${count} environment variables from .gcw.session.conf`);
             } catch (e) {
-                console.error('[TERM] Failed to read .gcw.conf:', e);
+                console.error('[TERM] Failed to read .gcw.session.conf:', e);
             }
         } else {
-            console.log(`[TERM] .gcw.conf not found at: ${configPath}`);
+            console.log(`[TERM] .gcw.session.conf not found at: ${configPath}`);
         }
         return { env: customEnv, customVars };
     }
@@ -108,7 +108,8 @@ class TerminalHandler {
             `tmux set-option -t ${sessionName} set-clipboard on`,
             `tmux set-option -t ${sessionName} pane-active-border-style fg=cyan`,
             `tmux set-window-option -t ${sessionName} window-status-current-style fg=black,bg=cyan`,
-            `tmux set-option -t ${sessionName} -g word-separators " "`
+            `tmux set-option -t ${sessionName} -g word-separators " "`,
+            `tmux set-option -t ${sessionName} pane-border-indicators both`
         ].join('; ');
 
         // Tmux 세션 사전 구성
@@ -132,9 +133,16 @@ class TerminalHandler {
         console.log(`[TERM] Attaching to tmux session: ${sessionName}`);
         const { env: customEnv } = this.getGcwEnv();
         
-        this._connectToTmux(sessionName, customEnv);
-        // 클라이언트에게 Attach 성공 응답 (UI 갱신 목적)
-        this.socket.emit('created', sessionName); 
+        const setupCmds = [
+            `tmux set-option -t ${sessionName} pane-border-indicators both`
+        ].join('; ');
+
+        exec(setupCmds, { env: customEnv }, (error) => {
+            if (error) console.error('[TERM] Attach setup error:', error.message);
+            this._connectToTmux(sessionName, customEnv);
+            // 클라이언트에게 Attach 성공 응답 (UI 갱신 목적)
+            this.socket.emit('created', sessionName); 
+        });
     }
 
     /**

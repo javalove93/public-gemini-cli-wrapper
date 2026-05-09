@@ -17,6 +17,7 @@
 ## 2. 특정 메시지 헤더 및 마커 사용
 작업 시작 시 다음 해시태그를 사용하여 작업 성격을 정의합니다.
 - **#PLAN**: 새로운 대규모 계획 수립 및 설계. (`chat_history/YYMMDD-HHMM-PLAN-[title].md` 작성)
+  - **[MANDATORY] 컨텍스트 등록**: PLAN 문서를 생성한 직후에는 **반드시 `context.md`의 `## 3. 향후 추진 계획 (Current To-Do List)` 섹션에 해당 계획과 문서 링크를 To-Do 항목으로 추가**하여 다른 세션의 에이전트와 동기화해야 합니다.
   - **중요**: 이 태그는 문서 작성을 지시하는 것이며, 사용자가 'Gemini CLI plan mode'를 명시적으로 요청하지 않는 한 에이전트의 자체 읽기 전용 상태(`enter_plan_mode` 도구)로 전환하지 마십시오.
 - **#TR**: 버그 수정 및 문제 해결. (`chat_history/YYMMDD-HHMM-TR-[title].md` 작성)
   - **문서화 라이프사이클**: 코드 수정 직후 분석/해결 계획/적용 내역을 담아 문서를 먼저 생성하되, 상태를 `⏳ Pending Confirmation`으로 기록합니다. 사용자의 최종 확인이 떨어지면 상태를 `✅ Completed`로 변경하여 작업을 마무리합니다.

@@ -92,7 +92,7 @@ export class SettingsManager {
         if (this.optMapPaste) this.optMapPaste.checked = (this.getUiSetting('GCW_UI_OPT_MAP_PASTE') !== 'false');
         if (this.optMapStt) this.optMapStt.checked = (this.getUiSetting('GCW_UI_OPT_MAP_STT') !== 'false');
         if (this.optMapSttCancel) this.optMapSttCancel.checked = (this.getUiSetting('GCW_UI_OPT_MAP_STT_CANCEL') !== 'false');
-        if (this.optKeepTmux) this.optKeepTmux.checked = (this.getUiSetting('GCW_UI_OPT_KEEP_TMUX') === 'true');
+        if (this.optKeepTmux) this.optKeepTmux.checked = (this.getUiSetting('GCW_UI_OPT_KEEP_TMUX') !== 'false');
 
         // 커스텀 단축키 로드
         this.buttonMappings.forEach(mapping => {
@@ -107,8 +107,21 @@ export class SettingsManager {
     }
 
     _bindCheckboxEvents() {
+        console.log('[DEBUG-SETTINGS] Binding checkbox events...');
         const bindOpt = (elem, key) => {
-            if (elem) elem.onchange = () => this.saveUiSetting(key, elem.checked);
+            if (elem) {
+                console.log(`[DEBUG-SETTINGS] Bound event for element with key: ${key}`);
+                elem.onchange = () => {
+                    console.log(`[DEBUG-SETTINGS] Checkbox changed! Key: ${key}, New Value: ${elem.checked}`);
+                    if (typeof this.saveUiSetting !== 'function') {
+                        console.error(`[DEBUG-SETTINGS] FATAL: this.saveUiSetting is not a function! It is:`, this.saveUiSetting);
+                        return;
+                    }
+                    this.saveUiSetting(key, elem.checked);
+                };
+            } else {
+                console.warn(`[DEBUG-SETTINGS] Element not found for key: ${key}`);
+            }
         };
 
         bindOpt(this.optCmdC, 'GCW_UI_OPT_CMDC_TO_CTRLC');

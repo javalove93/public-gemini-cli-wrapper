@@ -19,6 +19,21 @@ body {
     border-bottom: 1px solid #444;
 }
 
+#viewer-header.compact-mode {
+    padding: 4px 10px;
+    background-color: #252526;
+}
+
+#viewer-header.compact-mode #file-path {
+    font-size: 0.8em;
+    color: #888;
+}
+
+#viewer-header.compact-mode button {
+    padding: 3px 10px;
+    font-size: 0.85em;
+}
+
 #file-path {
     font-family: monospace;
     font-size: 0.9em;
@@ -181,7 +196,7 @@ code {
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 6000;
 }
 
 .modal-content {
@@ -441,7 +456,6 @@ code {
     .pane.left,
     .pane-header,
     .copy-btn,
-    #swap-panes-btn,
     .modal,
     .btn-new-tab {
         display: none !important;

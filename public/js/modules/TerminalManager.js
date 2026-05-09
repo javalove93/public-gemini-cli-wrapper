@@ -30,7 +30,8 @@ export class TerminalManager {
         this.optMapStt = options.optMapStt;
         this.optMapSttCancel = options.optMapSttCancel;
         this.sttManager = options.sttManager;
-        this.onPwdSyncTrigger = options.onPwdSyncTrigger;
+        this.onPwdSyncTrigger = options.onPwdSyncTrigger || (() => {});
+        this.onPasteFromClipboard = options.onPasteFromClipboard; // 추가: 공용 붙여넣기 콜백
         
         // 내장 테마 색상 정의
         this.lightThemeColors = {
@@ -197,6 +198,8 @@ export class TerminalManager {
 
             if (this.optCmdC.checked && e.metaKey && (e.key === 'c' || e.key === 'C')) {
                 if (e.type === 'keydown') this.socket.emit('input', '\x03');
+                if (e.preventDefault) e.preventDefault();
+                if (e.stopPropagation) e.stopPropagation();
                 return false;
             }
 
@@ -212,8 +215,14 @@ export class TerminalManager {
                 (this._matchShortcut(e, this.shortcuts['paste']) || this._matchShortcut(e, this.shortcuts['paste_2']))) {
                 if (e.type === 'keydown') {
                     window.lastCustomPasteTime = Date.now();
-                    this._pasteFromClipboard();
+                    if (this.onPasteFromClipboard) {
+                        this.onPasteFromClipboard(); // ThumbnailManager의 고도화된 붙여넣기 사용
+                    } else {
+                        this._pasteFromClipboard();
+                    }
                 }
+                if (e.preventDefault) e.preventDefault();
+                if (e.stopPropagation) e.stopPropagation();
                 return false;
             }
 
@@ -227,11 +236,15 @@ export class TerminalManager {
                         console.warn('[STT] Speech Recognition not supported or not initialized.');
                     }
                 }
+                if (e.preventDefault) e.preventDefault();
+                if (e.stopPropagation) e.stopPropagation();
                 return false;
             }
 
             if (e.key === 'Enter' && e.shiftKey) {
                 if (e.type === 'keydown') this.socket.emit('input', '\x0a');
+                if (e.preventDefault) e.preventDefault();
+                if (e.stopPropagation) e.stopPropagation();
                 return false;
             }
             return true;
@@ -263,8 +276,12 @@ export class TerminalManager {
     _handleDualShortcut(e, optionCheckbox, shortcutKey1, shortcutKey2, sequence) {
         if (optionCheckbox && optionCheckbox.checked && 
             (this._matchShortcut(e, this.shortcuts[shortcutKey1]) || this._matchShortcut(e, this.shortcuts[shortcutKey2]))) {
-            if (e.type === 'keydown') this.socket.emit('input', sequence);
-            return true;
+            if (e.type === 'keydown') {
+                this.socket.emit('input', sequence);
+            }
+            if (e.preventDefault) e.preventDefault();
+            if (e.stopPropagation) e.stopPropagation();
+            return true; // Match found, prevent further xterm handling
         }
         return false;
     }
@@ -273,7 +290,8 @@ export class TerminalManager {
         if (navigator.clipboard && navigator.clipboard.readText) {
             try {
                 const text = await navigator.clipboard.readText();
-                if (text) this.socket.emit('input', text);
+                // [FIX] Use xterm's native paste to support bracketed paste mode
+                if (text) this.term.paste(text);
             } catch (err) {
                 console.error('Failed to read clipboard: ', err);
             }

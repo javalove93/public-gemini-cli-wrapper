@@ -5,12 +5,13 @@ import { TerminalManager } from './js/modules/TerminalManager.js';
 import { STTManager } from './js/modules/STTManager.js';
 import { SidebarManager } from './js/modules/SidebarManager.js';
 import { AppSocketHandler } from './js/modules/AppSocketHandler.js';
-import { UIController } from './js/modules/UIController.js';
+import { UIController } from './js/modules/UIController.js?v=260505-1600';
 import { SettingsManager } from './js/modules/SettingsManager.js';
 import { FileBrowserModal } from './js/modules/FileBrowserModal.js';
 import { UploadHandler } from './js/modules/UploadHandler.js';
 import { ThumbnailManager } from './js/modules/ThumbnailManager.js';
 import { TmuxVisualizer } from './js/modules/TmuxVisualizer.js';
+import { FloatingViewerManager } from './js/modules/FloatingViewerManager.js';
 
 // 기존 전역 변수 유지 (리팩토링 진행함에 따라 점진적 제거 예정)
 const basePath = socketClient.basePath;
@@ -52,31 +53,9 @@ let term; // xterm 인스턴스 (기존 코드 호환을 위해 유지하되, ma
 
 const sessionManager = document.getElementById('session-manager');
 const mainLayout = document.getElementById('main-layout');
-const terminalContainer = document.getElementById('terminal-container');
 const sessionList = document.getElementById('session-list');
 const btnNewSession = document.getElementById('btn-new-session');
 const inputNewSessionName = document.getElementById('new-session-name');
-const btnSettings = document.getElementById('btn-settings');
-const settingsModal = document.getElementById('settings-modal');
-const closeSettings = document.getElementsByClassName('close-settings')[0];
-const optCmdC = document.getElementById('opt-cmd-c');
-const optCmdY = document.getElementById('opt-cmd-y');
-const optCmdO = document.getElementById('opt-cmd-o');
-const optMapHome = document.getElementById('opt-map-home');
-const optMapEnd = document.getElementById('opt-map-end');
-const optMapPrefix = document.getElementById('opt-map-prefix');
-const optMapPaste = document.getElementById('opt-map-paste');
-const optMapStt = document.getElementById('opt-map-stt');
-const optKeepTmux = document.getElementById('opt-keep-tmux');
-const btnRecordShortcut = document.getElementById('record-custom-shortcut');
-const btnRecordOShortcut = document.getElementById('record-o-shortcut');
-const btnRecordHomeShortcut = document.getElementById('record-home-shortcut');
-const btnRecordEndShortcut = document.getElementById('record-end-shortcut');
-const btnRecordPrefixShortcut = document.getElementById('record-prefix-shortcut');
-const btnRecordPasteShortcut = document.getElementById('record-paste-shortcut');
-const btnRecordSttShortcut = document.getElementById('record-stt-shortcut');
-const btnRecordSttShortcut2 = document.getElementById('record-stt-shortcut-2'); // 두 번째 단축키 버튼
-const optTheme = document.getElementById('opt-theme');
 const currentSessionNameSpan = document.getElementById('current-session-name');
 const btnRenameSession = document.getElementById('btn-rename-session');
 const btnEnvInfo = document.getElementById('btn-env-info');
@@ -91,29 +70,16 @@ const btnFontPlus = document.getElementById('btn-font-plus');
 const btnSplitH = document.getElementById('btn-split-h');
 const btnSplitV = document.getElementById('btn-split-v');
 const btnResetClients = document.getElementById('btn-reset-clients');
-const recentImagesDropdown = document.getElementById('recent-images-dropdown');
-const recentImagePreview = document.getElementById('recent-image-preview');
-const btnInsertSelected = document.getElementById('btn-insert-selected');
-const navDropdown = document.getElementById('nav-dropdown');
-const modal = document.getElementById('image-modal');
-const modalImg = document.getElementById('modal-img');
-const closeModal = document.getElementsByClassName('close')[0];
+
+// 파일 브라우저(Open) 관련 로직은 FileBrowserModal 로 분리됨
+
+const connectionStatus = document.getElementById('connection-status');
+const optTheme = document.getElementById('opt-theme');
+const optKeepTmux = document.getElementById('opt-keep-tmux');
 
 const envModal = document.getElementById('env-modal');
 const envContent = document.getElementById('env-content');
 const closeEnvModal = document.getElementById('close-env-modal');
-
-const connectionStatus = document.getElementById('connection-status');
-
-const contextMenu = document.getElementById('context-menu');
-const menuView = document.getElementById('menu-view');
-const menuDownload = document.getElementById('menu-download');
-const menuRename = document.getElementById('menu-rename');
-const menuDelete = document.getElementById('menu-delete');
-
-const clipboardHistoryList = document.getElementById('clipboard-history');
-
-// 파일 브라우저(Open) 관련 로직은 FileBrowserModal 로 분리됨
 
 // --- Auto-Connect Stealth Mode State ---
 let isAutoConnectEnabled = localStorage.getItem('gcw_auto_connect') !== 'false';
@@ -224,6 +190,9 @@ function createTerminalManager() {
                     } catch (err) {}
                 }
             }, 500);
+        },
+        onPasteFromClipboard: () => {
+            if (uploadHandler) uploadHandler.pasteFromClipboard();
         }
     });
 
@@ -246,6 +215,9 @@ function createSidebarManager() {
         getApiPath: getApiPath,
         onLoadThumbnails: (dir) => {
             if (thumbnailManager) thumbnailManager.loadLatestThumbnails(dir);
+        },
+        onOpenPopup: (path) => {
+            if (floatingViewerManager) floatingViewerManager.open(path);
         }
     });
 
@@ -325,7 +297,10 @@ function createUploadHandler() {
     uploadHandler = new UploadHandler({
         socket: socket,
         fileManager: fileManager,
-        mainLayout: mainLayout
+        mainLayout: mainLayout,
+        pasteTextFallback: (text) => {
+            if (term) term.paste(text);
+        }
     });
     return uploadHandler;
 }
@@ -348,6 +323,16 @@ function createTmuxVisualizer() {
         tmuxManager: tmuxManager
     });
     return tmuxVisualizer;
+}
+
+let floatingViewerManager = null;
+function createFloatingViewerManager() {
+    if (floatingViewerManager) return floatingViewerManager;
+    floatingViewerManager = new FloatingViewerManager({
+        basePath: basePath
+    });
+    window.floatingViewerManager = floatingViewerManager; // Expose globally for modals
+    return floatingViewerManager;
 }
 
 let autoSyncTimeout = null;
@@ -625,30 +610,6 @@ if (inputNewSessionName) {
 // Tmux 관련 콜백 및 전역 소켓 통신은 AppSocketHandler 로 이관됨
 // ---------------------------------------------------------
 
-// Workspaces로 돌아가기 (navDropdown에서 호출)
-async function returnToWorkspaces() {
-    try {
-        // 프록시 모드로 접속 중인 경우 (예: /GCW/ 경로 사용 중)
-        // 현재 호스트와 포트(리버스 프록시 환경 포함)를 유지한 채 루트로 이동
-        if (basePath !== '/') {
-            window.location.href = '/';
-            return;
-        }
-
-        // Direct Access 모드로 접속 중인 경우 (경로가 /)
-        // 백엔드에서 마스터 포트를 받아와 명시적으로 해당 포트로 이동
-        const response = await fetch(getApiPath('/api/system-info'));
-        const info = await response.json();
-        
-        // window.location.protocol 적용하여 https/http 호환성 확보
-        const targetUrl = `${window.location.protocol}//${window.location.hostname}:${info.masterPort}/`;
-        window.location.href = targetUrl;
-    } catch (e) {
-        console.error('Failed to get system info, redirecting to fallback root.', e);
-        window.location.href = '/';
-    }
-}
-
 // Tmux 화면 분할
 btnSplitH.onclick = () => {
     socket.emit('tmux_split', 'horizontal');
@@ -711,19 +672,6 @@ closeEnvModal.onclick = () => {
 
 // 클립보드 붙여넣기(이미지) 및 업로드 UI 로직은 UploadHandler 로 분리됨
 
-// 내비게이션 드롭다운 처리
-if (navDropdown) {
-    navDropdown.addEventListener('change', (e) => {
-        const val = e.target.value;
-        if (val === 'sessions') {
-            window.location.search = '?select=true';
-        } else if (val === 'workspaces') {
-            returnToWorkspaces();
-        }
-        // 초기화
-        e.target.value = '';
-    });
-}
 
 // 썸네일/모달 로직 및 레거시 컨텍스트 메뉴는 ThumbnailManager, SidebarManager 로 각각 분리됨
 
@@ -803,6 +751,7 @@ createFileBrowserModal();
 createUploadHandler();
 createThumbnailManager();
 createTmuxVisualizer();
+createFloatingViewerManager();
 
 initApp();
 

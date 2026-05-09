@@ -29,6 +29,10 @@ export class UIController {
         this.btnEnvInfo = document.getElementById('btn-env-info');
         this.closeEnvModal = document.getElementById('close-env-modal');
 
+        this.workspacesModal = document.getElementById('workspaces-modal');
+        this.workspacesIframe = document.getElementById('workspaces-iframe');
+        this.closeWorkspacesModal = document.getElementById('close-workspaces-modal');
+
         this.navDropdown = document.getElementById('nav-dropdown');
         this.btnSttToggle = document.getElementById('btn-stt-toggle');
 
@@ -41,8 +45,20 @@ export class UIController {
         this._bindFontControls();
         this._bindEnvModal();
         this._bindNavDropdown();
+        this._bindWorkspacesModal();
         this._initTheme();
         this.updateSttButtonTooltip();
+    }
+
+    _bindWorkspacesModal() {
+        if (this.closeWorkspacesModal) {
+            this.closeWorkspacesModal.onclick = () => {
+                if (this.workspacesModal) {
+                    this.workspacesModal.style.display = "none";
+                    this.workspacesIframe.src = 'about:blank'; // Unload
+                }
+            };
+        }
     }
 
     // STT 버튼 툴팁 업데이트 (단축키 안내 표시)
@@ -202,21 +218,28 @@ export class UIController {
         if (!this.navDropdown) return;
         this.navDropdown.addEventListener('change', (e) => {
             const val = e.target.value;
+            console.log('[NavDropdown] value selected:', val);
+
             if (val === 'sessions') {
                 window.location.search = '?select=true';
             } else if (val === 'workspaces') {
-                // Return to Workspaces Logic (간단히 처리)
-                const basePath = this.socketClient.basePath;
-                if (basePath !== '/') {
+                window.location.href = '/';
+            } else if (val === 'workspaces-modal') {
+                if (this.workspacesModal && this.workspacesIframe) {
+                    this.workspacesIframe.src = '/';
+                    this.workspacesModal.style.display = 'flex';
+                } else {
+                    console.error('[NavDropdown] Workspaces modal DOM not found!');
                     window.location.href = '/';
-                    return;
                 }
-                fetch(this.getApiPath('/api/system-info'))
-                    .then(res => res.json())
-                    .then(info => {
-                        window.location.href = `${window.location.protocol}//${window.location.hostname}:${info.masterPort}/`;
-                    })
-                    .catch(() => window.location.href = '/');
+            } else if (val === 'add-project') {
+                if (this.workspacesModal && this.workspacesIframe) {
+                    this.workspacesIframe.src = '/?action=add';
+                    this.workspacesModal.style.display = 'flex';
+                } else {
+                    console.error('[NavDropdown] Workspaces modal DOM not found!');
+                    window.location.href = '/?action=add';
+                }
             }
             e.target.value = '';
         });

@@ -648,6 +648,31 @@ body.light-theme .tab-item.active {
     border-bottom: 1px solid #333;
 }
 
+/* Modal Buttons */
+.btn-new-tab, .btn-popup {
+    background: #333;
+    border: 1px solid #555;
+    color: #569cd6;
+    cursor: pointer;
+    font-size: 10px;
+    padding: 1px 4px;
+    margin-left: 10px;
+    border-radius: 3px;
+    transition: all 0.2s;
+    vertical-align: middle;
+    display: inline-block;
+}
+
+.btn-popup {
+    color: #4fc1ff;
+}
+
+.btn-new-tab:hover, .btn-popup:hover {
+    background: #444;
+    color: #fff;
+    border-color: #569cd6;
+}
+
 #modal-file-list-main li:hover {
     background-color: #37373d;
 }
@@ -667,6 +692,11 @@ body.light-theme .tab-item.active {
     white-space: nowrap;
 }
 
+.file-actions {
+    flex-shrink: 0;
+    margin-right: 10px;
+}
+
 .file-mtime-main {
     width: 130px;
     text-align: right;
@@ -678,7 +708,7 @@ body.light-theme .tab-item.active {
 .modal {
     display: none;
     position: fixed;
-    z-index: 1000;
+    z-index: 6000;
     left: 0;
     top: 0;
     width: 100%;
@@ -1011,4 +1041,102 @@ body.light-theme .shortcut-btn {
     0% { opacity: 1; }
     50% { opacity: 0.3; }
     100% { opacity: 1; }
+}
+
+/* Floating Modal Styles */
+.floating-modal {
+    position: fixed;
+    top: 100px;
+    left: 400px; /* Start from a reasonable left position */
+    width: 600px;
+    height: 700px;
+    background: #1e1e1e;
+    border: 1px solid #569cd6; /* Brighter border */
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.1); /* Stronger shadow with slight glow */
+    display: flex;
+    flex-direction: column;
+    z-index: 5000;
+    overflow: hidden;
+    min-width: 300px;
+    min-height: 200px;
+}
+
+.floating-modal.hidden {
+    display: none;
+}
+
+.floating-modal .modal-header {
+    background: #007acc; /* Distinct VS Code blue header */
+    color: #ffffff;
+    padding: 8px 12px;
+    cursor: move;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: none;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.floating-modal #floating-viewer-title {
+    font-size: 0.85rem;
+    color: #ccc;
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.floating-modal .modal-body {
+    flex-grow: 1;
+    position: relative;
+    background: #000;
+}
+
+.floating-modal iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.floating-modal .modal-resizer {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 15px;
+    height: 15px;
+    cursor: nwse-resize;
+    background: linear-gradient(135deg, transparent 50%, #555 50%);
+    z-index: 10;
+}
+
+.floating-modal .modal-controls {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+}
+
+.floating-modal .modal-controls button {
+    background: transparent;
+    color: #aaa;
+    border: none;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.floating-modal .modal-controls button:hover {
+    background: #444;
+    color: #fff;
+}
+
+.floating-modal .modal-controls #btn-floating-close:hover {
+    background: #e81123;
 }

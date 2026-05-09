@@ -172,8 +172,22 @@ export class FileBrowserModal {
                     this.fetchModalFilesMain();
                 };
             } else {
-                li.innerHTML = `${icon} <span class="file-name-main">${file.name}</span> <span class="file-mtime-main">${this._formatDate(file.mtime)}</span>`;
-                li.onclick = () => {
+                li.innerHTML = `${icon} <span class="file-name-main">${file.name}</span> <div class="file-actions"><button class="btn-popup" data-path="${file.path}" title="팝업으로 열기">[팝업]</button></div> <span class="file-mtime-main">${this._formatDate(file.mtime)}</span>`;
+                li.onclick = (e) => {
+                    if (e.target.classList.contains('btn-popup')) {
+                        const path = e.target.getAttribute('data-path');
+                        // Use floating viewer manager directly if available
+                        if (window.floatingViewerManager) {
+                            window.floatingViewerManager.open(path);
+                        } else {
+                            // Fallback to opening window
+                            window.open(`${this.basePath}viewer.html?path=${encodeURIComponent(path)}&mode=popup`, 'popup', 'width=800,height=600');
+                        }
+                        e.stopPropagation();
+                        this.fileModalMain.style.display = 'none';
+                        return;
+                    }
+                    
                     window.open(`${this.basePath}viewer.html?path=${encodeURIComponent(file.path)}`, '_blank');
                     this.fileModalMain.style.display = 'none';
                 };

@@ -168,15 +168,28 @@ function registerFileApiRoutes(app) {
     // API: 파일 다운로드
     app.get('/api/download', (req, res) => {
         const filePath = req.query.path;
-        if (!filePath) return res.status(400).send('Path is required');
+        console.log(`[DEBUG] /api/download requested. path: ${filePath}`);
+        if (!filePath) {
+            console.log('[DEBUG] /api/download failed: Path is required');
+            return res.status(400).send('Path is required');
+        }
 
         const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
+        console.log(`[DEBUG] /api/download absolutePath: ${absolutePath}`);
 
         if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
-            res.setHeader('Content-Disposition', `attachment; filename="${path.basename(absolutePath)}"`);
-            res.setHeader('Content-Type', 'application/octet-stream');
-            fs.createReadStream(absolutePath).pipe(res);
+            console.log(`[DEBUG] /api/download sending file via res.download: ${absolutePath}`);
+            // res.download는 한글 파일명 인코딩을 자동으로 처리하며 적절한 헤더를 설정합니다.
+            res.download(absolutePath, path.basename(absolutePath), (err) => {
+                if (err) {
+                    console.error(`[DEBUG] /api/download error during res.download:`, err);
+                    if (!res.headersSent) {
+                        res.status(500).send('Error during download');
+                    }
+                }
+            });
         } else {
+            console.log(`[DEBUG] /api/download failed: File not found at ${absolutePath}`);
             res.status(404).send('File not found');
         }
     });}

@@ -10,6 +10,7 @@
    - **[PRE-DELETE CHECK]** 요소 삭제/이동 전 호출부(Callers) 파악 필수.
 6. **[Atomic Workflow & Self-Verification]** 복잡한 작업은 단계를 쪼개어 진행하며, 수정 후 반드시 **`.agent/tools/run_lint.sh` 스크립트로 자가 검증**하십시오. 상세 절차는 **`.agent/rules/refactoring-rules.md`**의 체크포인트 프로토콜을 따릅니다.
    - **[LINT LOGGING]** 모든 수정 후 위 스크립트를 통해 린트 결과를 `lint_history/`에 자동 기록하십시오.
+   - **[STRICT LINT VERIFICATION]** 린트 로그 검증 시, 대소문자 구분 오류로 인한 에러 누락(예: `grep "Error"`)을 방지하기 위해 **반드시 대소문자를 무시하는 명령어(예: `grep -i "error"`)를 사용**하거나 로그의 최하단 요약본을 직접 읽어 확인하십시오.
 7. **[MCP Graph Root Fix]** `mcp_code-review-graph` 도구 사용 시 `repo_root`는 반드시 `gemini-cli-wrapper/`로 설정하십시오.
 8. **[Source Modification Authority]** 메인 소스 코드는 `gemini-cli-wrapper/` 디렉토리에 있으며, 모든 수정은 이 디렉토리 내부에서만 수행해야 합니다.
 9. **[Refactoring Rules Priority]** 대규모 코드 변경이나 아키텍처 수정 시에는 **`.agent/rules/refactoring-rules.md`**의 모든 조항이 본 강령과 결합되어 최우선 순위를 가집니다.

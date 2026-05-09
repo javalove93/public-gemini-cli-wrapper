@@ -78,6 +78,10 @@ const app = express();
 const server = http.createServer(app);
 const proxies = {}; // 각 프로젝트별 프록시 인스턴스 저장
 
+// Serve public static files for global scripts/styles (JS modules, etc.)
+// index: false prevents it from serving index.html and hijacking '/'
+app.use(express.static(path.join(__dirname, '../public'), { index: false }));
+
 function startProject(name, projectConfig) {
     const { dir, sessionName } = projectConfig;
     const childPort = nextPort++;
@@ -91,7 +95,8 @@ function startProject(name, projectConfig) {
         childEnv.GCW_DEFAULT_SESSION = sessionName;
     }
 
-    const child = spawn('node', [path.join(__dirname, 'server.js'), '--port', childPort.toString()], {
+    // Use process.execPath instead of 'node' to guarantee we use the same Node executable
+    const child = spawn(process.execPath, [path.join(__dirname, 'server.js'), '--port', childPort.toString()], {
         cwd: dir,
         stdio: ['inherit', 'inherit', 'inherit', 'ipc'], // IPC 채널 열기
         env: childEnv // 필요 시 자식 프로세스에서 식별할 수 있도록 환경변수 추가
@@ -191,7 +196,11 @@ Object.entries(projects).forEach(([name, projectConfig]) => {
     startProject(name, projectConfig);
 });
 
-// 5. Tmux 세션 관리 API
+// 5. External Handlers (Modularized API)
+const { registerHostFileApi } = require('./handlers/host_file.handler');
+registerHostFileApi(app);
+
+// 6. Tmux 세션 관리 API
 app.get('/api/tmux/sessions', (req, res) => {
     const { exec } = require('child_process');
     exec('tmux ls', (error, stdout) => {
@@ -252,6 +261,39 @@ app.get('/api/tmux/pwd', (req, res) => {
         if (error) return res.status(500).json({ error: error.message });
         res.json({ pwd: stdout.trim() });
     });
+});
+
+app.post('/api/projects/add', express.json(), (req, res) => {
+    const { name, dir, sessionName } = req.body;
+    if (!name || !dir) {
+        return res.status(400).json({ error: 'Name and directory are required' });
+    }
+
+    const cwdConfig = path.join(process.cwd(), '.gcw.conf');
+    const rootConfig = path.join(process.cwd(), '..', '.gcw.conf');
+    const configPath = fs.existsSync(cwdConfig) ? cwdConfig : rootConfig;
+
+    if (!fs.existsSync(configPath)) {
+        return res.status(500).json({ error: '.gcw.conf not found' });
+    }
+
+    let newLine = `\nPROJECT_${name.toUpperCase()}=${dir}`;
+    if (sessionName) {
+        newLine += ` ${sessionName}`;
+    }
+
+    try {
+        fs.appendFileSync(configPath, newLine, 'utf8');
+
+        // 메모리 갱신 및 핫 스타트 (Hot Start)
+        projects[name] = { dir, sessionName };
+        startProject(name, projects[name]);
+
+        res.json({ success: true, message: 'Project added and started successfully' });
+    } catch (e) {
+        console.error('[Master] Error appending to config:', e);
+        res.status(500).json({ error: 'Failed to write to config file' });
+    }
 });
 
 // 루트 접속 시 안내 페이지 (최신 .gcw.conf 로드 후 목록 표시 및 새로운 프로젝트 구동)
@@ -339,116 +381,56 @@ app.get('/', (req, res) => {
             .create-row button:hover { background: #1177bb; }
             .configured-tag { font-size: 0.7em; background: #1e4620; color: #4caf50; padding: 1px 4px; border-radius: 3px; margin-left: 8px; }
         </style>
-        <script>
-            function toggleDetails(name) {
-                const el = document.getElementById('details-' + name);
-                if (el.style.display === 'none') {
-                    // Close others
-                    document.querySelectorAll('.connection-details').forEach(d => d.style.display = 'none');
-                    el.style.display = 'block';
-                    } else {
-                    el.style.display = 'none';
-                    }
-                    }
-
-                    async function openTempWS() {
-                    document.getElementById('temp-ws-modal').style.display = 'block';
-                    refreshSessions();
-                    }
-
-                    function closeTempWS() {
-                    document.getElementById('temp-ws-modal').style.display = 'none';
-                    }
-
-                    async function refreshSessions() {
-                    const listEl = document.getElementById('session-list');
-                    listEl.innerHTML = '<div style="padding:10px;">Loading sessions...</div>';
-
-                    try {
-                    const res = await fetch('/api/tmux/sessions');
-                    const sessions = await res.json();
-
-                    listEl.innerHTML = '';
-                    if (sessions.length === 0) {
-                        listEl.innerHTML = '<div style="padding:10px; color:#888;">No active tmux sessions.</div>';
-                    }
-
-                    sessions.forEach(s => {
-                        const item = document.createElement('div');
-                        item.className = 'session-item';
-
-                        const nameDiv = document.createElement('div');
-                        nameDiv.className = 'session-name';
-                        nameDiv.onclick = () => window.location.href = '/TEMP/?session=' + s.name;
-                        nameDiv.innerHTML = s.name;
-
-                        const infoDiv = document.createElement('div');
-                        infoDiv.className = 'session-info';
-                        infoDiv.textContent = s.info.split(']')[0] + ']';
-
-                        const killBtn = document.createElement('div');
-                        killBtn.className = 'kill-btn';
-                        killBtn.textContent = 'Kill';
-                        killBtn.onclick = (e) => killSession(s.name, e);
-
-                        item.appendChild(nameDiv);
-                        item.appendChild(infoDiv);
-                        item.appendChild(killBtn);
-                        listEl.appendChild(item);
-                    });
-                    } catch (e) {
-                    listEl.innerHTML = '<div style="padding:10px; color:#ff5555;">Failed to load sessions.</div>';
-                    }
-                    }
-
-                    async function createSession() {
-                    const input = document.getElementById('new-session-name');
-                    const name = input.value.trim();
-                    if (!name) return;
-
-                    try {
-                    const res = await fetch('/api/tmux/sessions', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name })
-                    });
-                    if (res.ok) {
-                        input.value = '';
-                        // 생성 후 TEMP 워크스페이스를 통해 접속
-                        window.location.href = '/TEMP/?session=' + name;
-                    } else {
-                        const err = await res.json();
-                        alert('Error: ' + err.error);
-                    }
-                    } catch (e) {
-                    alert('Failed to create session');
-                    }
-                    }
-
-                    async function killSession(name, event) {
-                    event.stopPropagation();
-                    if (!window.confirm('Kill session: ' + name + '?')) return;
-
-                    try {
-                    const res = await fetch('/api/tmux/sessions/' + name, { method: 'DELETE' });
-                    if (res.ok) refreshSessions();
-                    } catch (e) {
-                    alert('Failed to kill session');
-                    }
-                    }
-
-            // Close dropdowns when clicking outside
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('.project-header')) {
-                    document.querySelectorAll('.connection-details').forEach(d => d.style.display = 'none');
-                }
-            });
+        <script type="module">
+            import { MasterController } from '/js/modules/MasterController.js';
+            import { BackendDirBrowser } from '/js/modules/BackendDirBrowser.js';
+            
+            // Initialize controllers
+            window.masterController = new MasterController();
+            window.backendDirBrowser = new BackendDirBrowser();
+            
+            // Check for ?action=add to auto-open the modal
+            if (new URLSearchParams(window.location.search).get('action') === 'add') {
+                setTimeout(() => {
+                    if (window.openAddProjectModal) window.openAddProjectModal();
+                }, 100);
+            }
         </script>
     </head>
     <body>
         <div class="header-row">
             <h1>${instanceName}Gemini CLI Wrapper - Workspaces</h1>
-            <button class="temp-ws-btn" onclick="openTempWS()">[ Temp Workspace ]</button>
+            <div>
+                <button class="temp-ws-btn" onclick="openAddProjectModal()" style="background-color: #0e639c; color: white;">+ Add Project</button>
+                <button class="temp-ws-btn" onclick="openTempWS()">[ Temp Workspace ]</button>
+            </div>
+        </div>
+
+        <div id="add-proj-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Add New Project</h2>
+                    <span class="close-modal" onclick="closeAddProjectModal()">&times;</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
+                    <div>
+                        <label style="display:block; margin-bottom:5px; color:#dcdcaa;">Directory Path</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="add-proj-dir" placeholder="e.g., /opt/jerrydisk/git/my-app" style="flex-grow:1; box-sizing:border-box; background:#3c3c3c; border:1px solid #555; color:#fff; padding:8px; border-radius:4px;" oninput="if(window.masterController) window.masterController.autoFillProjectNames(this.value)">
+                            <button onclick="browseDirectory()" style="background:#4d4d4d; color:#fff; border:1px solid #555; padding:8px 12px; border-radius:4px; cursor:pointer;">Browse</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display:block; margin-bottom:5px; color:#dcdcaa;">Project Name</label>
+                        <input type="text" id="add-proj-name" placeholder="e.g., MY_NEW_APP" style="width:100%; box-sizing:border-box; background:#3c3c3c; border:1px solid #555; color:#fff; padding:8px; border-radius:4px;">
+                    </div>
+                    <div>
+                        <label style="display:block; margin-bottom:5px; color:#dcdcaa;">Tmux Session Name (Optional)</label>
+                        <input type="text" id="add-proj-session" placeholder="e.g., my-app-session" style="width:100%; box-sizing:border-box; background:#3c3c3c; border:1px solid #555; color:#fff; padding:8px; border-radius:4px;">
+                    </div>
+                    <button onclick="submitAddProject()" style="background:#0e639c; color:#fff; border:none; padding:10px; border-radius:4px; cursor:pointer; font-weight:bold; margin-top:10px;">Add Project & Restart</button>
+                </div>
+            </div>
         </div>
 
         <div id="temp-ws-modal">
@@ -553,8 +535,8 @@ app.get('/', (req, res) => {
                     <span class="path">${dir}</span>
                 </div>
                 <div class="links">
-                    <a href="/${name}/" class="btn proxy-btn">Proxy Access (Port ${PORT})</a>
-                    <a href="http://${req.hostname || LOCAL_HOST}:${directPort}/" class="btn direct-btn">Direct Access (Port ${directPort} - Faster)</a>
+                    <a href="/${name}/" class="btn proxy-btn" target="_top">Proxy Access (Port ${PORT})</a>
+                    <a href="http://${req.hostname || LOCAL_HOST}:${directPort}/" class="btn direct-btn" target="_top">Direct Access (Port ${directPort} - Faster)</a>
                 </div>
             </li>
             `;

@@ -94,16 +94,19 @@
                     </select>
                     <img id="recent-image-preview" class="header-preview-img" style="display:none;" title="미리보기 (클릭 시 원본 보기)">
                     <button id="btn-insert-selected" title="선택한 이미지 경로 삽입" class="header-btn">삽입</button>
+                    <button id="btn-paste-clipboard" title="클립보드 이미지 붙여넣기 및 삽입" class="header-btn">붙여넣기</button>
                 </div>
                 <div class="header-right">
                     <div id="connection-wrapper" title="Click to toggle Auto-Connect ON/OFF" style="display: flex; flex-direction: column; align-items: flex-end; cursor: pointer;">
                         <span id="connection-status" class="status-connected">🟢 Connected</span>
                         <span id="auto-connect-label" style="font-size: 9px; color: #888; margin-top: -2px; user-select: none;">Auto-ON</span>
                     </div>
-                    <select id="nav-dropdown" class="header-select" title="메뉴 이동">
-                        <option value="">Navigate...</option>
+                    <select id="nav-dropdown" class="header-select">
+                        <option value="" disabled selected>Navigate...</option>
                         <option value="sessions">세션 선택 (Sessions)</option>
-                        <option value="workspaces">Workspaces</option>
+                        <option value="workspaces">Workspaces (전체창 이동)</option>
+                        <option value="workspaces-modal">Workspaces (모달 창)</option>
+                        <option value="add-project">새 프로젝트 추가 (Add Project)</option>
                     </select>
                 </div>
             </div>
@@ -172,7 +175,7 @@
             </div>
             <div class="settings-group">
                 <label class="settings-label" title="When enabled, the Tmux session will drop into a shell instead of closing completely when Gemini CLI exits.">
-                    <input type="checkbox" id="opt-keep-tmux">
+                    <input type="checkbox" id="opt-keep-tmux" checked>
                     Keep Tmux session alive after Gemini exits
                 </label>
             </div>
@@ -208,16 +211,19 @@
     <!-- 컨텍스트 메뉴 -->
     <div id="context-menu" class="hidden">
         <div class="context-menu-item" id="menu-view">👁️ 뷰어에서 보기 (Open Viewer)</div>
+        <div class="context-menu-item" id="menu-view-popup">🪟 팝업으로 보기 (Open as Popup)</div>
         <div class="context-menu-item" id="menu-download">다운로드 (Download)</div>
         <div class="context-menu-item" id="menu-rename">이름 변경 (Rename)</div>
         <div class="context-menu-item" id="menu-delete" style="color: #ff4d4d;">삭제 (Delete)</div>
     </div>
 
-    <!-- 메인 화면용 파일 브라우저 모달 -->
+    <!-- 파일 탐색기 모달 (메인 UI) -->
     <div id="file-modal-main" class="modal" style="display:none;">
         <div class="modal-content" style="background-color:#252526; width:90%; max-width:800px; height:80vh; display:flex; flex-direction:column; padding:0; border:1px solid #454545;">
-            <div class="modal-header" style="padding:15px; border-bottom:1px solid #454545; display:flex; justify-content:space-between; background-color:#2d2d2d;">
+            <div class="modal-header" style="padding:15px; border-bottom:1px solid #454545; display:flex; justify-content:space-between; background-color:#2d2d2d; align-items:center;">
+                <span style="color:#4fc1ff; font-weight:bold; margin-right:15px; white-space:nowrap;">Main UI Explorer</span>
                 <input type="text" id="modal-current-dir-main" style="flex-grow:1; font-family:monospace; color:#ce9178; background:#1e1e1e; border:1px solid #3c3c3c; padding:6px 10px; border-radius:4px; font-size:14px; margin-right:10px;" placeholder="Enter absolute or relative path and press Enter">
+                <span style="font-size:10px; color:#888; margin-right:10px;">v260505-1820</span>
                 <button id="modal-close-btn-main" style="background:transparent; color:#ccc; font-size:20px; padding:0 5px; width:auto; border:none; cursor:pointer;">&times;</button>
             </div>
             <div class="modal-list-header" style="display:flex; padding:10px 20px; background-color:#333; border-bottom:1px solid #454545; font-size:0.9em; font-weight:bold; color:#ccc; user-select:none;">
@@ -257,10 +263,38 @@
         </div>
     </div>
 
+    <!-- Workspaces Iframe Modal -->
+    <div id="workspaces-modal" class="modal">
+        <div class="modal-content" style="width: 85%; height: 85%; display: flex; flex-direction: column; background: #1e1e1e; border: 1px solid #454545;">
+            <div class="modal-header" style="padding: 10px 20px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center;">
+                <h2 style="margin: 0; color: #4fc1ff; font-size: 1.2em;">Workspaces & Projects</h2>
+                <span class="close-modal" id="close-workspaces-modal" style="font-size: 1.5em; cursor: pointer; color: #888;">&times;</span>
+            </div>
+            <div style="flex-grow: 1; position: relative;">
+                <iframe id="workspaces-iframe" src="about:blank" style="width: 100%; height: 100%; border: none; background: #1e1e1e;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- 플로팅 뷰어 모달 (드래그 가능) -->
+    <div id="floating-viewer-modal" class="floating-modal hidden">
+        <div id="floating-viewer-header" class="modal-header">
+            <span id="floating-viewer-title">Viewer</span>
+            <div class="modal-controls">
+                <button id="btn-floating-minimize" title="Minimize/Maximize">🗗</button>
+                <button id="btn-floating-close" title="Close">&times;</button>
+            </div>
+        </div>
+        <div class="modal-body">
+            <iframe id="floating-viewer-iframe" src="about:blank" frameborder="0"></iframe>
+        </div>
+        <div id="floating-viewer-resizer" class="modal-resizer"></div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.js"></script>
     <script src="socket.io/socket.io.js"></script>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=260505-1820"></script>
 </body>
 </html>

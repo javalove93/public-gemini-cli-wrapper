@@ -10,9 +10,6 @@
 <body>
     <div id="viewer-header">
         <span id="file-path" style="flex:1;">Loading...</span>
-        <div style="flex:1; text-align:center;">
-            <button id="swap-panes-btn" title="Swap Left/Right Panes" class="hidden" style="background:#555; padding:4px 12px; font-weight:bold;">⇄ Swap</button>
-        </div>
         <div class="header-buttons" style="flex:1; text-align:right;">
             <button id="edit-btn" class="hidden" style="background-color:#0e639c; color:white; border:none; padding:4px 10px; cursor:pointer; font-weight:bold; margin-right:5px; border-radius:3px;">Edit</button>
             <button id="open-btn">Open</button>
@@ -40,7 +37,8 @@
     <div id="file-modal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <span id="modal-current-dir">Loading...</span>
+                <span style="color:#dcdcaa; font-weight:bold; margin-right:15px;">Viewer Explorer</span>
+                <span id="modal-current-dir">Loading...</span> <span style="font-size:10px; color:#888; margin-left: 10px;">v260505-1820</span>
                 <div class="modal-controls">
                     <button id="modal-close-btn">&times;</button>
                 </div>
@@ -176,20 +174,30 @@
 
         <!-- 마크다운 분할 뷰용 컨테이너 -->
         <div id="markdown-container" class="split-view hidden">
-            <div class="pane left">
-                <div class="pane-header">
-                    <div class="pane-title">Raw Markdown</div>
-                    <button class="copy-btn" id="copy-raw-btn">Copy</button>
+            <div id="pane-raw" class="pane left">
+                <div class="pane-header" style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div class="pane-title">Raw Markdown</div>
+                        <button class="copy-btn hidden" id="reopen-rendered-btn" title="Open Rendered View" style="padding: 2px 6px; font-weight:bold;">&gt; Preview</button>
+                    </div>
+                    <div class="pane-controls">
+                        <button class="copy-btn" id="copy-raw-btn">Copy</button>
+                        <button class="copy-btn" id="close-raw-btn" title="Close Source" style="color:#ff5555; font-weight:bold;">&times;</button>
+                    </div>
                 </div>
                 <pre><code id="md-raw"></code></pre>
             </div>
-            <div class="pane right">
-                <div class="pane-header">
-                    <div class="pane-title">Rendered View</div>
+            <div id="pane-rendered" class="pane right">
+                <div class="pane-header" style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <button class="copy-btn hidden" id="reopen-raw-btn" title="Open Source Code" style="padding: 2px 6px; font-weight:bold;">&lt; Source</button>
+                        <div class="pane-title">Rendered View</div>
+                    </div>
                     <div class="pane-controls">
                         <button class="copy-btn" id="copy-rendered-btn">Copy</button>
                         <button class="copy-btn print-btn" title="Print this document">Print</button>
                         <button class="copy-btn pdf-btn" title="Export as PDF (via Print)">PDF</button>
+                        <button class="copy-btn" id="close-rendered-btn" title="Close Preview" style="color:#ff5555; font-weight:bold;">&times;</button>
                     </div>
                 </div>
                 <div id="md-rendered" class="markdown-body"></div>
@@ -202,6 +210,6 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid@9.4.3/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <!-- 캐시 방지를 위해 서버사이드 혹은 빌드 타임에 처리하는 것이 좋으나, 임시로 쿼리 스트링 활용 -->
-    <script type="module" src="viewer.js?v=260405-1200"></script>
+    <script type="module" src="viewer.js?v=260505-1820"></script>
 </body>
 </html>

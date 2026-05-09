@@ -28,6 +28,11 @@ export class SidebarManager {
         this.ctxDelete = document.getElementById('menu-delete');
         this.ctxRename = document.getElementById('menu-rename');
         this.ctxOpenViewer = document.getElementById('menu-view');
+        this.ctxOpenPopup = document.getElementById('menu-view-popup');
+
+        // 콜백 함수
+        this.onLoadThumbnails = options.onLoadThumbnails;
+        this.onOpenPopup = options.onOpenPopup;
 
         // 상태 변수
         this.selectedFileContext = null;
@@ -159,15 +164,20 @@ export class SidebarManager {
         // 컨텍스트 메뉴 액션 바인딩
         if (this.ctxDownload) {
             this.ctxDownload.onclick = () => {
+                console.log('[DEBUG] ctxDownload clicked. selectedFileContext:', this.selectedFileContext);
                 if (this.selectedFileContext && !this.selectedFileContext.isDirectory) {
                     const apiFn = this.getApiPath ? this.getApiPath : (ep) => ep;
                     const downloadUrl = apiFn(`/api/download?path=${encodeURIComponent(this.selectedFileContext.path)}`);
+                    console.log('[DEBUG] Download URL generated:', downloadUrl);
                     const a = document.createElement('a');
                     a.href = downloadUrl;
                     a.download = this.selectedFileContext.name;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
+                    console.log('[DEBUG] Download a tag clicked and removed');
+                } else {
+                    console.log('[DEBUG] ctxDownload failed: selectedFileContext is null or is a directory');
                 }
                 this.contextMenu.classList.add('hidden');
             };
@@ -223,11 +233,20 @@ export class SidebarManager {
         if (this.ctxOpenViewer) {
             this.ctxOpenViewer.onclick = () => {
                 if (this.selectedFileContext && !this.selectedFileContext.isDirectory) {
-                    // basePath를 알아내기 위해 현재 URL을 활용하거나, FileManager 등에서 주입받아야 함
-                    // 현재는 간단히 절대 경로 기반으로 처리
                     const basePath = window.location.pathname.endsWith('/') ? window.location.pathname : window.location.pathname + '/';
                     const viewerUrl = `${basePath}viewer.html?path=${encodeURIComponent(this.selectedFileContext.path)}`;
                     window.open(viewerUrl, '_blank');
+                }
+                this.contextMenu.classList.add('hidden');
+            };
+        }
+
+        if (this.ctxOpenPopup) {
+            this.ctxOpenPopup.onclick = () => {
+                if (this.selectedFileContext && !this.selectedFileContext.isDirectory) {
+                    if (this.onOpenPopup) {
+                        this.onOpenPopup(this.selectedFileContext.path);
+                    }
                 }
                 this.contextMenu.classList.add('hidden');
             };
