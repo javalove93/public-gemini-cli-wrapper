@@ -533,6 +533,49 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
 
+    // --- Edit Modal Logic ---
+    editBtn.onclick = () => {
+        if (!filePath) return;
+        
+        // 현재 활성화된 뷰 컨테이너 찾기 및 스크롤 비율 계산
+        let scrollPercentage = 0;
+        const activePane = filePath.toLowerCase().endsWith('.md') 
+            ? mdRaw.closest('.pane') 
+            : textContent.closest('.full-view');
+        
+        if (activePane && activePane.scrollHeight > activePane.clientHeight) {
+            scrollPercentage = activePane.scrollTop / (activePane.scrollHeight - activePane.clientHeight);
+        }
+
+        // 모달 준비
+        editFilePath.textContent = `Editing: ${filePath}`;
+        
+        // [Safety Tokenizer] 원본 텍스트를 토큰화하여 에디터에 주입
+        const tokenizedContent = tokenizeBase64(currentRawContent);
+        if (editTextarea.value !== tokenizedContent) {
+            editTextarea.value = tokenizedContent;
+        }
+        
+        editModal.classList.remove('hidden');
+
+        // Textarea 스크롤 및 커서 동기화 (DOM 렌더링 후 적용)
+        setTimeout(() => {
+            const valLen = editTextarea.value.length;
+            // 뷰어의 스크롤 비율에 맞춰 에디터의 커서 위치를 대략적으로 계산
+            const targetCharIdx = Math.floor(valLen * scrollPercentage);
+            
+            // 1. 커서 위치를 먼저 이동 (브라우저의 자동 스크롤 유도)
+            editTextarea.setSelectionRange(targetCharIdx, targetCharIdx);
+            // 2. 포커스
+            editTextarea.focus();
+            
+            // 3. 스크롤 위치를 뷰어 비율에 맞춰 정밀하게 재보정
+            if (editTextarea.scrollHeight > editTextarea.clientHeight) {
+                editTextarea.scrollTop = scrollPercentage * (editTextarea.scrollHeight - editTextarea.clientHeight);
+            }
+        }, 100);
+    };
+
     editCancelBtn.onclick = () => {
         editModal.classList.add('hidden');
     };

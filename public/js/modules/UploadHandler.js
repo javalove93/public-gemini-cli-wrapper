@@ -38,42 +38,41 @@ export class UploadHandler {
      * 버튼 클릭 및 커스텀 단축키에서 공용으로 사용됨.
      */
     async pasteFromClipboard() {
-        // [FIX] 브라우저의 navigator.clipboard.read() API가 포커스 상태에 따라 
-        // 캡처 도구의 이미지를 types: [] 로 오인하는 심각한 OS 레벨 버그가 존재함.
-        // 따라서 비동기 API를 완전히 폐기하고, 숨겨진 textarea를 이용해 
-        // 네이티브 paste 이벤트를 강제로 발생시키는 고전적인 해킹 기법으로 회귀함.
-        
-        const pasteTarget = document.createElement("textarea");
-        pasteTarget.style.position = "fixed";
-        pasteTarget.style.left = "-9999px";
-        pasteTarget.style.top = "0";
-        pasteTarget.style.opacity = "0";
-        
-        document.body.appendChild(pasteTarget);
-        pasteTarget.focus();
-        
+        if (!navigator.clipboard || !navigator.clipboard.read) {
+            console.warn('[UploadHandler] Clipboard API not supported');
+            return;
+        }
+
         try {
-            // 이 명령이 성공하면 브라우저가 이 파일 하단의 _bindPasteEvent()를 트리거함
-            const successful = document.execCommand('paste');
-            
-            // 만약 execCommand가 보안상 막혔다면 최후의 수단으로 텍스트만이라도 가져옴
-            if (!successful) {
-                if (navigator.clipboard && navigator.clipboard.readText) {
-                    const text = await navigator.clipboard.readText();
-                    if (text) {
-                        if (this.pasteTextFallback) this.pasteTextFallback(text);
-                        else if (this.socket) this.socket.emit('input', text);
-                    }
+            const clipboardItems = await navigator.clipboard.read();
+            let imageFound = false;
+
+            for (const clipboardItem of clipboardItems) {
+                // 1. 이미지 처리 (최우선)
+                const imageTypes = clipboardItem.types.filter(type => type.startsWith('image/'));
+                if (imageTypes.length > 0) {
+                    const imageType = imageTypes[0];
+                    const blob = await clipboardItem.getType(imageType);
+                    this._processImageBlob(blob, imageType);
+                    imageFound = true;
+                    break; 
+                }
+            }
+
+            // 2. 이미지가 없으면 텍스트 처리
+            if (!imageFound) {
+                const text = await navigator.clipboard.readText();
+                if (text) {
+                    console.log('[DEBUG] Pasting text from clipboard via Async API');
+                    if (this.pasteTextFallback) this.pasteTextFallback(text);
+                    else if (this.socket) this.socket.emit('input', text);
                 }
             }
         } catch (err) {
-            console.error('[UploadHandler] Error during forced paste:', err);
-        } finally {
-            setTimeout(() => {
-                if (document.body.contains(pasteTarget)) {
-                    document.body.removeChild(pasteTarget);
-                }
-            }, 100);
+            console.error('[UploadHandler] Failed to read clipboard:', err);
+            if (err.name === 'NotAllowedError') {
+                alert('클립보드 접근 권한이 필요합니다.');
+            }
         }
     }
 

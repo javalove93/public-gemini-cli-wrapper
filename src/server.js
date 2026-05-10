@@ -107,7 +107,7 @@ function getUiSettings() {
 }
 
 // 2. 정적 파일 및 UI 설정 주입 라우트
-app.get(['/', '/index.html', '/viewer.html', '/key-tester.html', '/mobile.html'], (req, res, next) => {
+app.get(['/', '/index.html', '/viewer.html', '/mobile.html'], (req, res, next) => {
     let filename = 'index.html';
     
     // 모바일 기기 감지 (User-Agent)
@@ -122,8 +122,6 @@ app.get(['/', '/index.html', '/viewer.html', '/key-tester.html', '/mobile.html']
         filename = 'mobile.html';
     } else if (req.path === '/viewer.html') {
         filename = 'viewer.html';
-    } else if (req.path === '/key-tester.html') {
-        filename = 'key-tester.html';
     }
     
     const indexPath = path.join(__dirname, '../public', filename);
