@@ -43,14 +43,52 @@ signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
 
 def load_workspaces():
     workspaces = {}
-    conf_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'telbot.conf'))
-    if os.path.exists(conf_path):
-        with open(conf_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line and '=' in line:
-                    key, val = line.split('=', 1)
-                    workspaces[key.strip()] = val.strip()
+    # bot.py가 src 폴더에 있으므로 부모 폴더의 telbot.conf를 찾습니다.
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    conf_path = os.path.join(base_dir, 'telbot.conf')
+    
+    def parse_file(path):
+        path = os.path.expanduser(path)
+        if not os.path.isabs(path):
+            path = os.path.join(base_dir, path)
+            
+        if not os.path.exists(path):
+            logging.debug(f"Config file not found: {path}")
+            return
+
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    
+                    if line.startswith('INCLUDE '):
+                        include_target = line[len('INCLUDE '):].strip()
+                        parse_file(include_target)
+                        continue
+                    
+                    if '=' in line:
+                        key, val = line.split('=', 1)
+                        key = key.strip()
+                        val = val.strip()
+                        
+                        # PROJECT_ 접두사 제거 및 tmux 세션 이름 제거 로직
+                        if key.startswith('PROJECT_'):
+                            key = key[len('PROJECT_'):]
+                            # 공백 뒤의 tmux 세션 이름 제거
+                            val = val.split(' ', 1)[0]
+                        
+                        # 값의 ~ 확장
+                        val = os.path.expanduser(val)
+                        
+                        # 절대 경로인 경우에만 워크스페이스로 추가
+                        if os.path.isabs(val):
+                            workspaces[key] = val
+        except Exception as e:
+            logging.error(f"Error parsing config file {path}: {e}")
+
+    parse_file(conf_path)
     return workspaces
 
 def strip_ansi(text):

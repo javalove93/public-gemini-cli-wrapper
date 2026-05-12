@@ -8,3 +8,8 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "python-telegram-bot[job-queue]>=22.7",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.12",
+]

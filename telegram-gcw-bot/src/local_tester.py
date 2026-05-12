@@ -5,14 +5,45 @@ from gemini_controller import GeminiController
 
 def load_workspaces():
     workspaces = {}
-    conf_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'telbot.conf'))
-    if os.path.exists(conf_path):
-        with open(conf_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line and '=' in line:
-                    key, val = line.split('=', 1)
-                    workspaces[key.strip()] = val.strip()
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    conf_path = os.path.join(base_dir, 'telbot.conf')
+    
+    def parse_file(path):
+        path = os.path.expanduser(path)
+        if not os.path.isabs(path):
+            path = os.path.join(base_dir, path)
+            
+        if not os.path.exists(path):
+            return
+
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    
+                    if line.startswith('INCLUDE '):
+                        include_target = line[len('INCLUDE '):].strip()
+                        parse_file(include_target)
+                        continue
+                    
+                    if '=' in line:
+                        key, val = line.split('=', 1)
+                        key = key.strip()
+                        val = val.strip()
+                        
+                        if key.startswith('PROJECT_'):
+                            key = key[len('PROJECT_'):]
+                            val = val.split(' ', 1)[0]
+                        
+                        val = os.path.expanduser(val)
+                        if os.path.isabs(val):
+                            workspaces[key] = val
+        except Exception as e:
+            print(f"Error parsing config file {path}: {e}")
+
+    parse_file(conf_path)
     return workspaces
 
 def show_help():

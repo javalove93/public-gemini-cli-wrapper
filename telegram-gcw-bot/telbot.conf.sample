@@ -1,6 +1,10 @@
 # [Workspace Alias]=[Absolute Path]
 # You can switch between these workspaces using bot commands.
 
+# You can also include other configuration files using the INCLUDE directive:
+# INCLUDE /path/to/another/config.conf
+# INCLUDE ~/.gcw.conf
+
 default=/home/user/projects/default-workspace
 my-project=/home/user/git/my-awesome-project
 test-lab=/tmp/gemini-test
