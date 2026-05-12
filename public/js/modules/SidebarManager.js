@@ -20,6 +20,7 @@ export class SidebarManager {
         this.contextMenu = document.getElementById('context-menu');
         this.btnFileSort = document.getElementById('btn-file-sort');
         this.btnFileTruncate = document.getElementById('btn-file-truncate');
+        this.globalTooltip = document.getElementById('global-tooltip');
 
         // 컨텍스트 메뉴 액션 버튼 캐싱 (실제 HTML ID로 매핑)
         this.ctxDownload = document.getElementById('menu-download');
@@ -123,6 +124,36 @@ export class SidebarManager {
     }
 
     _bindEvents() {
+        // 전역 툴팁 제어 (이벤트 위임)
+        if (this.fileTree && this.globalTooltip) {
+            this.fileTree.addEventListener('mousemove', (e) => {
+                const item = e.target.closest('.file-item');
+                if (item && item.hasAttribute('data-title')) {
+                    const title = item.getAttribute('data-title');
+                    this.globalTooltip.textContent = title;
+                    this.globalTooltip.classList.remove('hidden');
+                    
+                    // 마우스 위치 기준으로 툴팁 배치 (약간의 오프셋 추가)
+                    const tooltipWidth = this.globalTooltip.offsetWidth;
+                    let left = e.clientX + 15;
+                    
+                    // 화면 오른쪽 끝 방어
+                    if (left + tooltipWidth > window.innerWidth) {
+                        left = e.clientX - tooltipWidth - 15;
+                    }
+                    
+                    this.globalTooltip.style.left = `${left}px`;
+                    this.globalTooltip.style.top = `${e.clientY}px`;
+                } else {
+                    this.globalTooltip.classList.add('hidden');
+                }
+            });
+
+            this.fileTree.addEventListener('mouseleave', () => {
+                this.globalTooltip.classList.add('hidden');
+            });
+        }
+
         // 디렉토리 입력창 엔터 처리
         if (this.dirInput) {
             this.dirInput.addEventListener('keypress', (e) => {
@@ -296,7 +327,7 @@ export class SidebarManager {
                 const upDiv = document.createElement('div');
                 upDiv.className = 'file-item dir';
                 upDiv.textContent = '📁 ..';
-                upDiv.title = 'Go back to parent directory';
+                upDiv.setAttribute('data-title', 'Go back to parent directory');
                 upDiv.onclick = () => {
                     const parts = dir.split('/');
                     parts.pop(); // 현재 폴더 제거
@@ -320,7 +351,7 @@ export class SidebarManager {
                 }
                 
                 div.textContent = (f.isDirectory ? '📁 ' : '📄 ') + displayName;
-                div.title = f.name;
+                div.setAttribute('data-title', f.name); // 브라우저 기본 title 대신 커스텀 속성 사용
                 
                 // 폴더 클릭 이벤트
                 if (f.isDirectory) {
