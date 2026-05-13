@@ -50,6 +50,28 @@ export class MarkdownViewer extends SplitViewer {
         // --- 2. 커스텀 렌더러 설정 (상대 경로 이미지 및 링크 재계산) ---
         const renderer = new marked.Renderer();
         
+        // 경로 해결 및 정규화 헬퍼 (이중 인코딩 방지)
+        const resolvePath = (href, parentPath) => {
+            if (!href) return '';
+            let decodedHref = href;
+            try {
+                // 이미 인코딩된 경로가 들어올 수 있으므로 디코딩 (이중 인코딩 방지)
+                decodedHref = decodeURIComponent(href);
+            } catch (e) {}
+
+            let absPath;
+            if (decodedHref.startsWith('/')) {
+                absPath = decodedHref;
+            } else {
+                const lastSlashIndex = parentPath.lastIndexOf('/');
+                const currentDir = lastSlashIndex !== -1 ? parentPath.substring(0, lastSlashIndex) : '';
+                // 상대 경로 결합
+                absPath = currentDir ? `${currentDir}/${decodedHref}` : decodedHref;
+            }
+            // 불필요한 ./ 세그먼트 제거 및 연속 슬래시 정리
+            return absPath.replace(/\/(\.\/)+/g, '/').replace(/\/+/g, '/');
+        };
+
         // 이미지 렌더러
         renderer.image = function(href, title, text) {
             let actualHref, actualTitle, actualText;
@@ -65,14 +87,7 @@ export class MarkdownViewer extends SplitViewer {
             }
 
             if (actualHref && !actualHref.startsWith('http') && !actualHref.startsWith('data:')) {
-                let absoluteImagePath;
-                if (actualHref.startsWith('/')) {
-                    absoluteImagePath = actualHref;
-                } else {
-                    const lastSlashIndex = filePath.lastIndexOf('/');
-                    const currentDir = lastSlashIndex !== -1 ? filePath.substring(0, lastSlashIndex) : '';
-                    absoluteImagePath = currentDir ? `${currentDir}/${actualHref}` : actualHref;
-                }
+                const absoluteImagePath = resolvePath(actualHref, filePath);
                 actualHref = socketClient.getApiPath(`/api/image?path=${encodeURIComponent(absoluteImagePath)}`);
             }
             
@@ -100,16 +115,7 @@ export class MarkdownViewer extends SplitViewer {
 
             // 상대 경로 링크 처리 (http로 시작하지 않고, 앵커 #가 아니며, mailto 등이 아닌 경우)
             if (actualHref && !actualHref.startsWith('http') && !actualHref.startsWith('#') && !actualHref.startsWith('mailto:') && !actualHref.startsWith('tel:')) {
-                let absolutePath;
-                if (actualHref.startsWith('/')) {
-                    // 프로젝트 루트 기준 절대 경로로 처리 (앞의 / 제거)
-                    absolutePath = actualHref.substring(1);
-                } else {
-                    const lastSlashIndex = filePath.lastIndexOf('/');
-                    const currentDir = lastSlashIndex !== -1 ? filePath.substring(0, lastSlashIndex) : '';
-                    absolutePath = currentDir ? `${currentDir}/${actualHref}` : actualHref;
-                }
-                
+                const absolutePath = resolvePath(actualHref, filePath);
                 // viewer.html을 통해 열리도록 URL 재작성
                 actualHref = `viewer.html?path=${encodeURIComponent(absolutePath)}`;
             }

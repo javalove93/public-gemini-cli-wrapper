@@ -42,15 +42,18 @@ function registerFileApiRoutes(app) {
             const result = items.map(item => {
                 const fullPath = path.join(dir, item.name);
                 let mtime = 0;
+                let isDirectory = item.isDirectory();
                 try {
-                    // 심볼릭 링크나 권한 에러 방지
-                    mtime = fs.statSync(fullPath).mtimeMs;
+                    // 심볼릭 링크나 권한 에러 방지 (follow symlinks)
+                    const stat = fs.statSync(fullPath);
+                    mtime = stat.mtimeMs;
+                    isDirectory = stat.isDirectory();
                 } catch (e) {
-                    // 에러 발생 시 mtime을 0으로 설정하고 계속 진행
+                    // 에러 발생 시 (broken link 등) 기본값 유지
                 }
                 return {
                     name: item.name,
-                    isDirectory: item.isDirectory(),
+                    isDirectory: isDirectory,
                     path: fullPath,
                     mtime: mtime
                 };
@@ -381,13 +384,9 @@ function registerFileHandlers(socket, io) {
                 return socket.emit('error', 'Invalid path for deletion.');
             }
             const absolutePath = path.resolve(process.cwd(), targetPath);
-            if (fs.existsSync(absolutePath)) {
-                const stat = fs.statSync(absolutePath);
-                if (stat.isDirectory()) {
-                    fs.rmdirSync(absolutePath, { recursive: true });
-                } else {
-                    fs.unlinkSync(absolutePath);
-                }
+            if (fs.existsSync(absolutePath) || fs.lstatSync(absolutePath).isSymbolicLink()) {
+                // fs.rmSync는 심볼릭 링크 자체를 안전하게 제거하며, 디렉토리인 경우에도 재귀적으로 동작합니다.
+                fs.rmSync(absolutePath, { recursive: true, force: true });
                 console.log(`[FILE] Deleted: ${absolutePath}`);
                 socket.emit('file_deleted', { path: targetPath, success: true });
             }
