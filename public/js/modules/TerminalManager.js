@@ -454,8 +454,15 @@ export class TerminalManager {
         if (!this.term) return;
 
         console.log('[TERM] Applying screen snapshot jump.');
-        this.term.reset();
-        this.term.write(snapshotData);
+        
+        // [FIX] reset()은 마우스 트래킹 등 모든 모드를 초기화하므로 지양.
+        // 대신 화면을 지우고 커서를 홈으로 이동시키는 ANSI 시퀀스 사용.
+        // \x1b[H: 커서를 (0,0)으로, \x1b[2J: 화면 전체 지움
+        this.term.write('\x1b[H\x1b[2J');
+
+        // [FIX] capture-pane 데이터는 \n(LF)만 포함하므로 \r\n(CRLF)으로 변환해야 계단 현상 없음
+        const fixedData = snapshotData.replace(/\n/g, '\r\n');
+        this.term.write(fixedData);
         
         // 상태 복구
         this.isBombLogMuted = false;
