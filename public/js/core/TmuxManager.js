@@ -117,22 +117,23 @@ export class TmuxManager {
         if (!this.currentSession) return;
         socketClient.emit('kill_pane', index);
     }
+/**
+ * 새로운 Tmux 세션 생성 요청
+ */
+createSession(sessionName = '', keepAlive = false) {
+    socketClient.emit('create', { sessionName, keepAlive });
+}
 
-    /**
-     * 새로운 Tmux 세션 생성 요청
-     */
-    createSession(sessionName = '', keepAlive = false) {
-        socketClient.emit('create', { sessionName, keepAlive });
-    }
+/**
+ * 기존 Tmux 세션에 직접 Attach 요청
+ */
+attachSession(sessionName, options = {}) {
+    this.currentSession = sessionName;
+    // 세션명과 옵션(크기 등)을 합쳐서 전송
+    socketClient.emit('attach', { sessionName, ...options });
+}
 
-    /**
-     * 기존 Tmux 세션에 Attach 요청
-     */
-    attachSession(sessionName) {
-        this.currentSession = sessionName;
-        socketClient.emit('attach', sessionName);
-        this.onSessionChanged(sessionName);
-    }
+
 
     /**
      * 세션 이름 변경 요청

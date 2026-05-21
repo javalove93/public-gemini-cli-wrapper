@@ -5,6 +5,7 @@ export class AppSocketHandler {
         this.socketClient = options.socketClient;
         this.fileManager = options.fileManager;
         this.tmuxManager = options.tmuxManager;
+        this.terminalManager = options.terminalManager; // 추가
         this.sidebarManager = options.sidebarManager;
         this.getApiPath = options.getApiPath;
         this.optTheme = options.optTheme;
@@ -34,15 +35,29 @@ export class AppSocketHandler {
 
         // 터미널 출력 (output)
         this.socket.on('output', data => {
-            const term = this.getTerm ? this.getTerm() : null;
-            if (term) {
-                term.write(data);
+            const tm = this.terminalManager; // this 사용
+            if (tm) {
+                tm.writeWithBombDetection(data);
+            } else {
+                const term = this.getTerm ? this.getTerm() : null;
+                if (term) term.write(data);
+            }
+        });
+
+        // 터미널 스냅샷 (폭탄 로그 대응)
+        this.socket.on('terminal_snapshot', snapshotData => {
+            const tm = this.terminalManager; // this 사용
+            if (tm) {
+                tm.applySnapshot(snapshotData);
             }
         });
 
         // 세션 종료 (exit)
         this.socket.on('exit', () => {
-            if (this.onDetach) this.onDetach();
+            console.log('[DEBUG] PTY Exit received. UI will show disconnection overlay.');
+            if (this.tmuxManager) {
+                this.tmuxManager.onSessionExited();
+            }
         });
 
         // 2. 디렉토리 변경 (fswatch) 이벤트

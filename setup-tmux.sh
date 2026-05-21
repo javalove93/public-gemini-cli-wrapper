@@ -120,11 +120,11 @@ set -g word-separators " "
 # [1] 패널 선택 및 이벤트 전달 (더블클릭 방해 방지)
 bind-key -n MouseDown1Pane select-pane -t= \; send-keys -M
 
-# [2] 드래그 종료 시 복사 후 화면 튕김 방지 (스크롤 유지)
-bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-selection
-bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-selection
+# [2] 드래그 종료 시: 최하단(0)이면 즉시 복사 모드 종료, 아니면 스크롤 유지를 위해 모드만 유지
+bind-key -T copy-mode MouseDragEnd1Pane if-shell -F "#{scroll_position}" "send-keys -X copy-selection" "send-keys -X copy-selection-and-cancel"
+bind-key -T copy-mode-vi MouseDragEnd1Pane if-shell -F "#{scroll_position}" "send-keys -X copy-selection" "send-keys -X copy-selection-and-cancel"
 
-# [3] 마우스 버튼 뗄 때: 스크롤이 맨 바닥(0)이면 복사 모드 자동 종료, 아니면 유지
+# [3] 마우스 버튼 뗄 때: 스크롤이 맨 바닥(0)이면 무조건 복사 모드 종료 (Jerry님의 Painpoint 해결)
 bind-key -T copy-mode MouseUp1Pane if-shell -F "#{scroll_position}" "send-keys -M" "send-keys -X cancel"
 bind-key -T copy-mode-vi MouseUp1Pane if-shell -F "#{scroll_position}" "send-keys -M" "send-keys -X cancel"
 

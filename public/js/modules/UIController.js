@@ -3,6 +3,7 @@ export class UIController {
         this.getUiSetting = options.getUiSetting;
         this.saveUiSetting = options.saveUiSetting;
         this.socketClient = options.socketClient;
+        this.tmuxManager = options.tmuxManager; // 추가
         this.getApiPath = options.getApiPath;
         
         // 터미널 인스턴스/매니저 조작용 콜백
@@ -36,6 +37,11 @@ export class UIController {
         this.navDropdown = document.getElementById('nav-dropdown');
         this.btnSttToggle = document.getElementById('btn-stt-toggle');
 
+        // Reconnect Overlay
+        this.disconnectOverlay = document.getElementById('disconnect-overlay');
+        this.btnReconnect = document.getElementById('btn-reconnect');
+        this.onReconnect = options.onReconnect;
+
         this.init();
     }
 
@@ -46,8 +52,29 @@ export class UIController {
         this._bindEnvModal();
         this._bindNavDropdown();
         this._bindWorkspacesModal();
+        this._bindReconnectButton();
         this._initTheme();
         this.updateSttButtonTooltip();
+    }
+
+    _bindReconnectButton() {
+        if (!this.btnReconnect) return;
+        this.btnReconnect.onclick = () => {
+            const currentSession = this.tmuxManager ? this.tmuxManager.currentSession : null;
+            
+            console.log('[UI] Reconnect clicked for session:', currentSession);
+            if (currentSession && this.onReconnect) {
+                if (this.disconnectOverlay) this.disconnectOverlay.style.display = 'none';
+                const term = this.getTerm ? this.getTerm() : null;
+                if (term) {
+                    term.clear();
+                    term.write('\r\n\x1b[33mReconnecting to session...\x1b[0m\r\n');
+                }
+                this.onReconnect(currentSession);
+            } else {
+                window.location.reload();
+            }
+        };
     }
 
     _bindWorkspacesModal() {

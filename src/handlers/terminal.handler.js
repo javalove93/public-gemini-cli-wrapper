@@ -19,11 +19,11 @@ class TerminalHandler {
      * .gcw.session.conf 파일을 읽어 환경 변수를 파싱합니다.
      */
     getGcwEnv() {
-        const configPath = path.join(process.cwd(), '.gcw.session.conf');
+        const configPath = process.env.GCW_SESSION_CONFIG_PATH || path.join(process.cwd(), '.gcw.session.conf');
         const customEnv = { ...process.env };
         const customVars = {};
 
-        console.log(`[TERM] Checking for .gcw.session.conf at: ${configPath}`);
+        console.log(`[TERM] Checking for config at: ${configPath}`);
 
         if (fs.existsSync(configPath)) {
             try {
@@ -119,7 +119,7 @@ class TerminalHandler {
                 // 세션이 이미 존재할 경우 무시하고 진행 가능성 확인
             }
 
-            this._connectToTmux(sessionName, customEnv);
+            this._connectToTmux(sessionName, customEnv, options);
             this.socket.emit('created', sessionName);
         });
     }
@@ -127,10 +127,14 @@ class TerminalHandler {
     /**
      * 기존 Tmux 세션에 직접 Attach
      */
-    handleAttach(sessionName) {
+    handleAttach(payload) {
         this._cleanupPty();
         
-        console.log(`[TERM] Attaching to tmux session: ${sessionName}`);
+        // 페이로드가 객체인 경우와 단순 문자열인 경우 모두 대응 (하위 호환)
+        const sessionName = typeof payload === 'object' ? payload.sessionName : payload;
+        const options = typeof payload === 'object' ? payload : {};
+        
+        console.log(`[TERM] Attaching to tmux session: ${sessionName}, Size: ${options.cols}x${options.rows}`);
         const { env: customEnv } = this.getGcwEnv();
         
         const setupCmds = [
@@ -139,7 +143,7 @@ class TerminalHandler {
 
         exec(setupCmds, { env: customEnv }, (error) => {
             if (error) console.error('[TERM] Attach setup error:', error.message);
-            this._connectToTmux(sessionName, customEnv);
+            this._connectToTmux(sessionName, customEnv, options);
             // 클라이언트에게 Attach 성공 응답 (UI 갱신 목적)
             this.socket.emit('created', sessionName); 
         });
@@ -148,7 +152,7 @@ class TerminalHandler {
     /**
      * 공통 PTY 스폰 및 스트리밍 로직
      */
-    _connectToTmux(sessionName, customEnv) {
+    _connectToTmux(sessionName, customEnv, options = {}) {
         // 2. node-pty를 통해 해당 Tmux 세션에 접속 (-d 옵션으로 기존 접속자 강제 분리)
         let command = 'tmux';
         let args = ['attach-session', '-d', '-t', sessionName];
@@ -166,10 +170,14 @@ class TerminalHandler {
             args = ['-c', `exec tmux attach -d -t "${sessionName}"`];
         }
 
+        // 초기 사이즈가 전달되면 적용, 없으면 기본값(80x24) 사용
+        const cols = parseInt(options.cols) || 80;
+        const rows = parseInt(options.rows) || 24;
+
         this.ptyProcess = pty.spawn(command, args, {
             name: 'xterm-256color',
-            cols: 80,
-            rows: 24,
+            cols: cols,
+            rows: rows,
             cwd: process.cwd(),
             env: ptyEnv
         });
@@ -424,6 +432,23 @@ class TerminalHandler {
     }
 
     /**
+     * 현재 터미널 화면 스냅샷 (capture-pane) 요청 처리
+     */
+    handleRequestSnapshot() {
+        if (!this.currentSessionName) return;
+
+        console.log(`[TERM] Capturing snapshot for session: ${this.currentSessionName}`);
+        // -e: ANSI escape sequences 포함, -p: stdout으로 출력
+        exec(`tmux capture-pane -e -p -t "${this.currentSessionName}"`, (error, stdout) => {
+            if (error) {
+                console.error('[TERM] Capture snapshot error:', error);
+                return;
+            }
+            this.socket.emit('terminal_snapshot', stdout);
+        });
+    }
+
+    /**
      * 핸들러 등록 (선언적 라우팅)
      */
     static register(socket, io) {
@@ -442,6 +467,7 @@ class TerminalHandler {
         socket.on('kill_window', (index) => handler.handleKillWindow(index));
         socket.on('list_panes', () => handler.handleListPanes());
         socket.on('kill_pane', (index) => handler.handleKillPane(index));
+        socket.on('request_snapshot', () => handler.handleRequestSnapshot());
 
         // 연결 끊김 시 PTY 정리 로직 추가 (좀비 방지)
         socket.on('disconnect', () => {

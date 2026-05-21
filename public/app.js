@@ -33,7 +33,10 @@ async function saveUiSetting(key, value) {
         await fetch(getApiPath('/api/ui-settings'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ [key]: value })
+            body: JSON.stringify({ 
+                [key]: value,
+                session: tmuxManager.currentSession // 현재 세션 이름을 함께 전달하여 워크스페이스별 저장 지원
+            })
         });
     } catch (e) {
         console.error('Failed to save UI setting', key, e);
@@ -193,6 +196,9 @@ function createTerminalManager() {
         },
         onPasteFromClipboard: () => {
             if (uploadHandler) uploadHandler.pasteFromClipboard();
+        },
+        onRequestSnapshot: () => {
+            socket.emit('request_snapshot');
         }
     });
 
@@ -235,12 +241,13 @@ function createAppSocketHandler() {
         socketClient: socketClient,
         fileManager: fileManager,
         tmuxManager: tmuxManager,
+        terminalManager: terminalManager, // 추가: 폭탄 로그 감지용
         sidebarManager: sidebarManager,
         getApiPath: getApiPath,
         optTheme: optTheme,
         getTerm: () => term,
         onDetach: () => detach(),
-        onAttachSession: (name) => attachSession(name),
+        onAttachSession: (name) => updateSessionUI(name),
         onAddThumbnail: (info) => {
             if (thumbnailManager) thumbnailManager.addThumbnail(info);
         },
@@ -270,9 +277,14 @@ function createUIController() {
         getUiSetting: getUiSetting,
         saveUiSetting: saveUiSetting,
         socketClient: socketClient,
+        tmuxManager: tmuxManager, // 추가
         getApiPath: getApiPath,
         getTerm: () => term,
-        getTerminalManager: () => terminalManager
+        getTerminalManager: () => terminalManager,
+        onReconnect: (name) => attachSession(name), // 추가
+        // TerminalManager에 정의된 (투명 선택 기능이 포함된) 테마 색상을 공유
+        lightThemeColors: terminalManager.lightThemeColors,
+        darkThemeColors: terminalManager.darkThemeColors
     });
 
     return uiController;
@@ -366,12 +378,15 @@ let autoSyncTimeout = null;
 
 // 썸네일 로직은 ThumbnailManager 로 분리됨
 
-// 세션 연결 (UI 업데이트 전용)
+// 세션 연결 요청 (Core 호출)
 function attachSession(name) {
-    // 1. 상태 업데이트 (Core에 기록)
-    tmuxManager.currentSession = name;
+    const size = term ? { cols: term.cols, rows: term.rows } : {};
+    tmuxManager.attachSession(name, size);
+}
 
-    // 2. UI 전환
+// 세션 연결 성공 시 UI 업데이트
+function updateSessionUI(name) {
+    // 1. UI 전환
     sessionManager.style.display = 'none';
     mainLayout.style.display = 'flex';
     currentSessionNameSpan.textContent = `Session: ${name}`;
@@ -386,7 +401,6 @@ function attachSession(name) {
         term.clear();
     }
 
-    // Core를 통한 통신은 TmuxManager 내부에서 이미 처리됨
     // 여기서는 UI만 갱신함
     socketClient.emit('theme_change', optTheme.value);
     
@@ -551,16 +565,17 @@ socket.on('connect', () => {
     // 이전에 사용 중이던 세션이 있다면 다시 연결 시도
     // [전략 3+1] 자동 접속 방지 로직 도입
     if (tmuxManager.currentSession && mainLayout.style.display !== 'none') {
+        const size = term ? { cols: term.cols, rows: term.rows } : {};
         // 최초 접속(새로고침 등)일 때는 Auto-OFF 여부와 무관하게 1회 무조건 연결 허용
         if (isFirstConnection) {
             console.log('[DEBUG] First connection detected. Attaching to session:', tmuxManager.currentSession);
-            tmuxManager.attachSession(tmuxManager.currentSession);
+            tmuxManager.attachSession(tmuxManager.currentSession, size);
             isFirstConnection = false;
         } 
         // 이후 재연결 상황일 때만 Auto-OFF 및 포커스 방어막 작동
         else if (isAutoConnectEnabled && document.visibilityState === 'visible') {
             console.log('[DEBUG] Auto-reattaching to last used session:', tmuxManager.currentSession);
-            tmuxManager.attachSession(tmuxManager.currentSession);
+            tmuxManager.attachSession(tmuxManager.currentSession, size);
         } else {
             console.log('[DEBUG] Auto-attach skipped: Tab is hidden or Auto-Connect is OFF.');
             // 자동 접속이 꺼져있거나 백그라운드인 경우, 세션 끊김 오버레이를  유지하여 사용자의 명시적 클릭 유도
@@ -726,7 +741,8 @@ async function initApp() {
             const exists = sessions.some(s => s.name === defaultSession);
             if (exists) {
                 // Core 모듈을 통한 세션 접속 (onSessionChanged가 호출되어 UI 갱신됨)
-                tmuxManager.attachSession(defaultSession);
+                const size = term ? { cols: term.cols, rows: term.rows } : {};
+                tmuxManager.attachSession(defaultSession, size);
             } else {
                 // 존재하지 않으면 새로 생성 후 접속
                 tmuxManager.createSession(defaultSession, optKeepTmux.checked);

@@ -33,6 +33,14 @@ export class TerminalManager {
         this.onPwdSyncTrigger = options.onPwdSyncTrigger || (() => {});
         this.onPasteFromClipboard = options.onPasteFromClipboard; // 추가: 공용 붙여넣기 콜백
         
+        // Bomb Log Detection State
+        this.isBombLogMuted = false;
+        this.lastDataTime = Date.now();
+        this.dataBacklogSize = 0;
+        this.BOMB_THRESHOLD = 100 * 1024; // 100KB
+        this.BOMB_WINDOW_MS = 500; // 0.5초
+        this.onRequestSnapshot = options.onRequestSnapshot || (() => {});
+
         // 내장 테마 색상 정의
         this.lightThemeColors = {
             background: '#f5f5f5',
@@ -103,11 +111,13 @@ export class TerminalManager {
             theme: this.optTheme.value === 'light' ? this.lightThemeColors : this.darkThemeColors,
             allowProposedApi: true,
             macOptionClickForcesSelection: true
+            // disableSelection 옵션은 xterm.js 표준이 아니므로 제거
         });
 
         this._setupEvents();
         this._setupAddons();
-        this.term.open(document.getElementById('terminal'));
+        const terminalContainer = document.getElementById('terminal');
+        this.term.open(terminalContainer);
         this.fit();
 
         return this.term;
@@ -326,11 +336,13 @@ export class TerminalManager {
             return false;
         });
 
-        // Selection Change
+        // Selection Change (제거: disableSelection: true 설정으로 인해 불필요)
+        /*
         this.term.onSelectionChange(() => {
             const text = this.term.getSelection();
             if (text && text.length > 2) this.copyToClipboard(text);
         });
+        */
     }
 
     copyToClipboard(text) {
@@ -395,5 +407,59 @@ export class TerminalManager {
         if (this.term) {
             this.term.options.theme = isLight ? this.lightThemeColors : this.darkThemeColors;
         }
+    }
+
+    /**
+     * 폭탄 로그 감지 기능이 포함된 데이터 쓰기
+     */
+    writeWithBombDetection(data) {
+        if (!this.term) return;
+
+        // 이미 뮤트 상태라면 데이터 무시
+        if (this.isBombLogMuted) return;
+
+        const now = Date.now();
+        const elapsed = now - this.lastDataTime;
+
+        if (elapsed > this.BOMB_WINDOW_MS) {
+            // 윈도우 시간이 지나면 초기화
+            this.dataBacklogSize = data.length;
+            this.lastDataTime = now;
+        } else {
+            this.dataBacklogSize += data.length;
+        }
+
+        // 임계값 초과 시 폭탄 로그로 판단
+        if (this.dataBacklogSize > this.BOMB_THRESHOLD) {
+            console.warn(`[TERM] Bomb log detected (${Math.round(this.dataBacklogSize / 1024)}KB). Muting and jumping...`);
+            this.isBombLogMuted = true;
+            
+            // UI 피드백 (필요 시)
+            this.term.write('\r\n\x1b[33m[SYSTEM] Large log detected. Optimizing view...\x1b[0m\r\n');
+            
+            // 백엔드에 스냅샷 요청
+            if (this.onRequestSnapshot) {
+                this.onRequestSnapshot();
+            }
+            return;
+        }
+
+        this.term.write(data);
+    }
+
+    /**
+     * 백엔드에서 받은 스냅샷을 터미널에 강제 적용
+     */
+    applySnapshot(snapshotData) {
+        if (!this.term) return;
+
+        console.log('[TERM] Applying screen snapshot jump.');
+        this.term.reset();
+        this.term.write(snapshotData);
+        
+        // 상태 복구
+        this.isBombLogMuted = false;
+        this.dataBacklogSize = 0;
+        this.lastDataTime = Date.now();
     }
 }

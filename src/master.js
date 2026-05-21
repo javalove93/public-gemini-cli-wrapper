@@ -90,7 +90,14 @@ function startProject(name, projectConfig) {
     console.log(`[Master] Starting project '${name}' at ${dir} on internal port ${childPort}`);
     
     // server.js를 자식 프로세스로 실행, cwd를 해당 프로젝트 폴더로 설정
-    const childEnv = { ...process.env, GCW_PROJECT_NAME: name, GCW_MASTER_PORT: PORT.toString(), GCW_HOME: dir };
+    const instance = process.env.GCW_INSTANCE || 'DEFAULT';
+    const childEnv = { 
+        ...process.env, 
+        GCW_PROJECT_NAME: name, 
+        GCW_MASTER_PORT: PORT.toString(), 
+        GCW_HOME: dir,
+        GCW_SESSION_CONFIG_PATH: path.join(dir, `.gcw.session.${instance}.${name}.conf`) // 인스턴스명 포함
+    };
     if (sessionName) {
         childEnv.GCW_DEFAULT_SESSION = sessionName;
     }
