@@ -410,63 +410,67 @@ export class TerminalManager {
     }
 
     /**
-     * 폭탄 로그 감지 기능이 포함된 데이터 쓰기
+     * 지능형 적응형 스로틀링이 포함된 데이터 쓰기
      */
     writeWithBombDetection(data) {
         if (!this.term) return;
 
-        // 이미 뮤트 상태라면 데이터 무시
-        if (this.isBombLogMuted) return;
-
         const now = Date.now();
         const elapsed = now - this.lastDataTime;
 
+        // 1. 데이터 유입량 계산
         if (elapsed > this.BOMB_WINDOW_MS) {
-            // 윈도우 시간이 지나면 초기화
             this.dataBacklogSize = data.length;
             this.lastDataTime = now;
         } else {
             this.dataBacklogSize += data.length;
         }
 
-        // 임계값 초과 시 폭탄 로그로 판단
-        if (this.dataBacklogSize > this.BOMB_THRESHOLD) {
-            console.warn(`[TERM] Bomb log detected (${Math.round(this.dataBacklogSize / 1024)}KB). Muting and jumping...`);
-            this.isBombLogMuted = true;
-            
-            // UI 피드백 (필요 시)
-            this.term.write('\r\n\x1b[33m[SYSTEM] Large log detected. Optimizing view...\x1b[0m\r\n');
-            
-            // 백엔드에 스냅샷 요청
-            if (this.onRequestSnapshot) {
-                this.onRequestSnapshot();
-            }
-            return;
+        // 2. 폭탄 로그 감지 및 모드 전환
+        if (!this.isThrottling && this.dataBacklogSize > this.BOMB_THRESHOLD) {
+            console.warn(`[TERM] High data density detected (${Math.round(this.dataBacklogSize / 1024)}KB). Switching to Throttled Rendering.`);
+            this.isThrottling = true;
+            this._startFlushInterval();
         }
 
-        this.term.write(data);
+        // 3. 모드에 따른 처리
+        if (this.isThrottling) {
+            this.throttleBuffer += data;
+            this.lastDataTime = now; // Idle 체크를 위해 시간 업데이트
+        } else {
+            this.term.write(data);
+        }
     }
 
     /**
-     * 백엔드에서 받은 스냅샷을 터미널에 강제 적용
+     * 버퍼링된 데이터를 주기적으로 화면에 렌더링
      */
-    applySnapshot(snapshotData) {
-        if (!this.term) return;
+    _startFlushInterval() {
+        if (this.flushInterval) return;
 
-        console.log('[TERM] Applying screen snapshot jump.');
-        
-        // [FIX] reset()은 마우스 트래킹 등 모든 모드를 초기화하므로 지양.
-        // 대신 화면을 지우고 커서를 홈으로 이동시키는 ANSI 시퀀스 사용.
-        // \x1b[H: 커서를 (0,0)으로, \x1b[2J: 화면 전체 지움
-        this.term.write('\x1b[H\x1b[2J');
+        this.flushInterval = setInterval(() => {
+            const now = Date.now();
+            
+            // 데이터가 버퍼에 있으면 렌더링
+            if (this.throttleBuffer.length > 0) {
+                this.term.write(this.throttleBuffer);
+                this.throttleBuffer = '';
+            }
 
-        // [FIX] capture-pane 데이터는 \n(LF)만 포함하므로 \r\n(CRLF)으로 변환해야 계단 현상 없음
-        const fixedData = snapshotData.replace(/\n/g, '\r\n');
-        this.term.write(fixedData);
-        
-        // 상태 복구
-        this.isBombLogMuted = false;
+            // 일정 시간 동안 추가 데이터 유입이 없으면 일반 모드로 복귀
+            if (now - this.lastDataTime > this.IDLE_RESTORE_MS) {
+                console.log('[TERM] Terminal idle. Restoring Real-time Rendering.');
+                this._stopFlushInterval();
+            }
+        }, this.FLUSH_PERIOD_MS);
+    }
+
+    _stopFlushInterval() {
+        if (this.flushInterval) {
+            clearInterval(this.flushInterval);
+            this.flushInterval = null;
+        }
+        this.isThrottling = false;
         this.dataBacklogSize = 0;
-        this.lastDataTime = Date.now();
     }
 }

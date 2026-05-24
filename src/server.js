@@ -247,12 +247,11 @@ app.use((req, res, next) => {
 app.post('/api/ui-settings', (req, res) => {
     const { workspacePath, session, ...newSettings } = req.body;
     
-    // 1. workspacePath가 명시적으로 오면 해당 경로의 .gcw.session.conf 사용
-    // 2. session이 오면 .gcw.conf에서 매핑된 경로 탐색 후 .gcw.session.conf 사용
-    // 3. 환경 변수 GCW_SESSION_CONFIG_PATH가 있으면 최우선 사용 (단, 위 조건들이 없을 때)
+    // [FIX] 환경 변수 GCW_SESSION_CONFIG_PATH가 있으면(격리 모드) 최우선 사용.
+    // 파라미터로 전달된 workspacePath나 session은 환경 변수가 없을 때만(예: 단독 실행 시) 폴백으로 사용함.
     let configPath = process.env.GCW_SESSION_CONFIG_PATH;
 
-    if (workspacePath || session) {
+    if (!configPath && (workspacePath || session)) {
         let targetDir = workspacePath || resolveProjectPathFromSession(session) || process.cwd();
         configPath = path.join(targetDir, '.gcw.session.conf');
     }

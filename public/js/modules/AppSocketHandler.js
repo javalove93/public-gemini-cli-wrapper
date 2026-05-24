@@ -44,14 +44,6 @@ export class AppSocketHandler {
             }
         });
 
-        // 터미널 스냅샷 (폭탄 로그 대응)
-        this.socket.on('terminal_snapshot', snapshotData => {
-            const tm = this.terminalManager; // this 사용
-            if (tm) {
-                tm.applySnapshot(snapshotData);
-            }
-        });
-
         // 세션 종료 (exit)
         this.socket.on('exit', () => {
             console.log('[DEBUG] PTY Exit received. UI will show disconnection overlay.');

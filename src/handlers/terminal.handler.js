@@ -432,23 +432,6 @@ class TerminalHandler {
     }
 
     /**
-     * 현재 터미널 화면 스냅샷 (capture-pane) 요청 처리
-     */
-    handleRequestSnapshot() {
-        if (!this.currentSessionName) return;
-
-        console.log(`[TERM] Capturing snapshot for session: ${this.currentSessionName}`);
-        // -e: ANSI escape sequences 포함, -p: stdout으로 출력
-        exec(`tmux capture-pane -e -p -t "${this.currentSessionName}"`, (error, stdout) => {
-            if (error) {
-                console.error('[TERM] Capture snapshot error:', error);
-                return;
-            }
-            this.socket.emit('terminal_snapshot', stdout);
-        });
-    }
-
-    /**
      * 핸들러 등록 (선언적 라우팅)
      */
     static register(socket, io) {
@@ -467,7 +450,6 @@ class TerminalHandler {
         socket.on('kill_window', (index) => handler.handleKillWindow(index));
         socket.on('list_panes', () => handler.handleListPanes());
         socket.on('kill_pane', (index) => handler.handleKillPane(index));
-        socket.on('request_snapshot', () => handler.handleRequestSnapshot());
 
         // 연결 끊김 시 PTY 정리 로직 추가 (좀비 방지)
         socket.on('disconnect', () => {

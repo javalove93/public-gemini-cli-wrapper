@@ -196,9 +196,6 @@ function createTerminalManager() {
         },
         onPasteFromClipboard: () => {
             if (uploadHandler) uploadHandler.pasteFromClipboard();
-        },
-        onRequestSnapshot: () => {
-            socket.emit('request_snapshot');
         }
     });
 
