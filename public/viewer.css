@@ -508,3 +508,14 @@ code {
     }
 }
 /* -------------------- */
+
+/* Viewer Focus Highlight Animation */
+@keyframes viewer-active-pulse {
+    0% { outline: 5px solid transparent; background-color: transparent; }
+    20% { outline: 5px solid #5e81ac; background-color: rgba(94, 129, 172, 0.2); }
+    100% { outline: 5px solid transparent; background-color: transparent; }
+}
+
+.highlight-active {
+    animation: viewer-active-pulse 1.5s ease-out;
+}

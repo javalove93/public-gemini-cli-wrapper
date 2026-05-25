@@ -58,6 +58,11 @@
             </div>
             <div id="tmux-window-tabs-bar" class="tabs-container">
                 <div id="tmux-window-tabs" class="tabs-list"></div>
+                <!-- 컴팩트 뷰어 목록 드롭다운 -->
+                <div id="viewer-list-container" class="viewer-dropdown" style="display: none;">
+                    <button id="btn-viewer-list" class="viewer-list-btn">👁️ Viewers <span id="viewer-count">0</span></button>
+                    <div id="viewer-dropdown-content" class="viewer-dropdown-content"></div>
+                </div>
                 <button id="btn-refresh-windows" title="Refresh Tmux Windows" class="tab-action-btn">🔄</button>
             </div>
             <div id="terminal-header">
@@ -276,20 +281,31 @@
         </div>
     </div>
 
-    <!-- 플로팅 뷰어 모달 (드래그 가능) -->
-    <div id="floating-viewer-modal" class="floating-modal hidden">
-        <div id="floating-viewer-header" class="modal-header">
-            <span id="floating-viewer-title">Viewer</span>
-            <div class="modal-controls">
-                <button id="btn-floating-minimize" title="Minimize/Maximize">🗗</button>
-                <button id="btn-floating-close" title="Close">&times;</button>
+    <!-- 플로팅 뷰어 모달 템플릿 (다중 창 지원용) -->
+    <template id="floating-viewer-template">
+        <div class="floating-modal">
+            <!-- 8-way Resizers -->
+            <div class="resizer t"></div>
+            <div class="resizer b"></div>
+            <div class="resizer l"></div>
+            <div class="resizer r"></div>
+            <div class="resizer tl"></div>
+            <div class="resizer tr"></div>
+            <div class="resizer bl"></div>
+            <div class="resizer br"></div>
+            
+            <div class="modal-header">
+                <span class="viewer-title">Viewer</span>
+                <div class="modal-controls">
+                    <button class="btn-minimize" title="Minimize/Maximize">🗗</button>
+                    <button class="btn-close" title="Close">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <iframe src="about:blank" frameborder="0"></iframe>
             </div>
         </div>
-        <div class="modal-body">
-            <iframe id="floating-viewer-iframe" src="about:blank" frameborder="0"></iframe>
-        </div>
-        <div id="floating-viewer-resizer" class="modal-resizer"></div>
-    </div>
+    </template>
 
     <!-- 전역 즉시 툴팁 -->
     <div id="global-tooltip" class="global-tooltip hidden"></div>

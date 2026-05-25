@@ -12,6 +12,7 @@ import { UploadHandler } from './js/modules/UploadHandler.js';
 import { ThumbnailManager } from './js/modules/ThumbnailManager.js';
 import { TmuxVisualizer } from './js/modules/TmuxVisualizer.js';
 import { FloatingViewerManager } from './js/modules/FloatingViewerManager.js';
+import { GlobalViewerManager } from './js/modules/GlobalViewerManager.js';
 
 // 기존 전역 변수 유지 (리팩토링 진행함에 따라 점진적 제거 예정)
 const basePath = socketClient.basePath;
@@ -334,11 +335,30 @@ function createTmuxVisualizer() {
     return tmuxVisualizer;
 }
 
+let globalViewerManager = null;
+function createGlobalViewerManager() {
+    if (globalViewerManager) return globalViewerManager;
+    globalViewerManager = new GlobalViewerManager({
+        onActivatePopup: (filePath) => {
+            if (floatingViewerManager) floatingViewerManager.bringToFront(filePath);
+        }
+    });
+    return globalViewerManager;
+}
+
 let floatingViewerManager = null;
 function createFloatingViewerManager() {
     if (floatingViewerManager) return floatingViewerManager;
+    
+    // GlobalViewerManager 가 먼저 생성되어 있어야 함
+    const gvm = createGlobalViewerManager();
+
     floatingViewerManager = new FloatingViewerManager({
-        basePath: basePath
+        basePath: basePath,
+        onWindowChange: (action, filePath) => {
+            if (action === 'open') gvm.registerPopup(filePath);
+            else if (action === 'close') gvm.unregisterPopup(filePath);
+        }
     });
     window.floatingViewerManager = floatingViewerManager; // Expose globally for modals
     return floatingViewerManager;
@@ -764,6 +784,7 @@ createFileBrowserModal();
 createUploadHandler();
 createThumbnailManager();
 createTmuxVisualizer();
+createGlobalViewerManager();
 createFloatingViewerManager();
 
 initApp();

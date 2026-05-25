@@ -1,114 +1,77 @@
 # Gemini CLI Wrapper (gcw)
 
-*Read this in other languages: [English](README-en.md), [한국어](README.md)*
+Gemini CLI를 브라우저 및 모바일 환경에서 편리하게 사용할 수 있도록 도와주는 Tmux 기반 웹 래퍼 프로젝트입니다.
 
-Gemini CLI를 브라우저 및 모바일 환경에서 편리하게 사용할 수 있도록 도와주는 **Tmux 기반 웹 인터페이스(WebUI) 래퍼**입니다. 터미널의 강력함과 웹의 편의성을 결합하여 어디서든 중단 없는 개발 환경을 제공합니다.
+## 📦 설치 가이드 (Installation)
 
-## ✨ 주요 기능
+이 프로젝트는 Node.js와 Tmux를 기반으로 동작하며, 웹 기반 터미널 구현을 위해 `node-pty` 네이티브 모듈을 사용합니다.
 
-- **지속성 있는 세션**: Tmux를 기반으로 동작하여 브라우저를 닫거나 네트워크가 끊겨도 작업 중인 컨텍스트가 그대로 유지됩니다.
-- **이미지 업로드 & 자동 참조**: 클립보드의 이미지를 웹 UI에 붙여넣기만 하면 자동으로 서버에 업로드되고, 터미널에 `@path/to/image` 형태로 경로가 즉시 삽입됩니다.
-- **강력한 파일 뷰어**: 텍스트, 마크다운(분할 뷰 및 동기식 스크롤), 이미지 파일을 실시간으로 확인할 수 있는 전용 뷰어를 제공합니다.
-- **모바일 지원**: 텔레그램 bot을 연결해서 워크스페이스를 동시에 액세스할 수 있게 하였습니다.
-- **AI 에이전트 프랙티스**: `.agent/` 디렉토리를 통해 AI 에이전트와 협업할 때 유용한 규칙(Rules)과 모범 사례를 공유합니다.
+### 1. 시스템 요구사항 (Prerequisites)
+- **Node.js**: v18 이상 권장
+- **Tmux**: 시스템에 반드시 설치되어 있어야 합니다. (MSYS2: `pacman -S tmux`, Ubuntu: `apt-get install tmux`, macOS: `brew install tmux`)
+- **빌드 도구**: `node-pty` 모듈 컴파일을 위해 Python, Make, G++ 등 OS별 네이티브 모듈 빌드 툴체인이 필요합니다.
 
-## 데모 화면 및 영상
-<img width="819" height="391" alt="image" src="https://github.com/user-attachments/assets/91d1d38d-d974-4d7d-9000-19655a937885" />
-
-<img width="1890" height="1009" alt="snap0230" src="https://github.com/user-attachments/assets/c4cc3c53-6a5b-4b72-8273-1ae29933140d" />
-
-### 음성을 이용한 프롬프트 입력
-<video src="https://github.com/user-attachments/assets/3abfbe68-a23a-4280-92c1-5a963ecc3198"
-     controls="controls" style="max-width: 100%; height: auto;">
-</video>
-
-*  나머지 영상
-     *  https://youtu.be/OrB4tIcn-Do - 리팩토링 규칙논의
-     *  https://youtu.be/z5kELIYIj30 - 리팩토링 도구 논의
-     *  https://youtu.be/n-GWdYEBBn8 - 추가 리팩토링 대상 결정
-     *  https://youtu.be/VO51VLH2MLc - 보조 세션을 통한 시스템 모니터링 및 코드 리뷰
-     *  https://youtu.be/8tw2Gujq5WE - 하네스 규칙을 피드백으로 추가
-     *  https://youtu.be/AxD_h1U9Eao - 보조 세션에게 새로운 기능에 대한 작업 계획서 작성 지시
-     *  https://youtu.be/HiByyLv-6-o - 나머지 리팩토링 작업
-     *  https://youtu.be/lQstH5bhzes - AI 의견 개진 방식을 하네스 엔지니어링 피드백에 반영
-
-
-
-## 🚀 시작하기
-
-### 1. 선행 조건 (Prerequisites)
-
-이 프로젝트를 실행하기 위해 다음 도구들이 설치되어 있어야 합니다.
-
-- [Node.js](https://nodejs.org/) (v18 이상 권장)
-- [Tmux](https://github.com/tmux/tmux) (터미널 세션 관리)
-- [Gemini CLI](https://ai.google.dev/gemini-api/docs/gemini-cli) (`npm install -g @google/gemini-cli`)
-
-### 2. 설치 (Installation)
-
-node module 설치 과정에 빌드 도구가 필요하여
+### 2. 패키지 설치 및 환경 초기화
+메인 소스코드가 위치한 `gemini-cli-wrapper/` 디렉토리로 이동하여 NPM 모듈 의존성을 설치하고 Tmux 환경을 초기화합니다.
 
 ```bash
-sudo apt-get update && sudo apt-get install -y build-essential
-```
+cd gemini-cli-wrapper
 
-tmux 설치
-
-```bash
-sudo apt-get install tmux
-```
-
-
-```bash
-git clone https://github.com/your-username/public-gemini-cli-wrapper.git
-cd public-gemini-cli-wrapper
+# 필수 Node.js 의존성 모듈 설치 (node-pty 포함)
 npm install
-```
 
-### 3. Tmux 환경 설정 (One-time Setup)
-
-웹 UI와 Tmux 간의 원활한 연동(클립보드, 색상 등)을 위해 다음 스크립트를 실행하여 설정을 최적화합니다. (기존 `~/.tmux.conf`는 백업됩니다.)
-
-```bash
+# 최초 1회 Tmux 설정 및 플러그인 초기화
 ./setup-tmux.sh
 ```
 
-### 4. 서버 실행 (Run)
+---
 
+## 🚀 운영 환경 고가용성 구성 (High Availability)
+
+백엔드 코드 수정이나 리팩토링 중에도 세션 중단 없이 안정적으로 서비스를 이용하기 위해, 운영 환경(`prod`)에서 **프록시 전용 포트**와 **작업 전용 포트**를 분리하여 운영하는 것을 권장합니다.
+
+### 1. 세션 분리 전략
+
+- **운영용 프록시 (Port 5002)**:
+  - 목적: 안정적인 세션 유지 및 코드 수정 영향 최소화
+  - 실행: `./run.sh --port 5002`
+  - 특징: 코드가 변경되어도 이 세션은 재시작하지 않으므로 작업 중인 컨텍스트가 보존됩니다.
+
+- **작업/개발용 (Port 5001)**:
+  - 목적: 최신 기능 테스트 및 실시간 백엔드 수정 적용
+  - 실행: `./run.sh --port 5001`
+  - 특징: 코드 수정 시 이 포트로 실행된 프로세스만 재시작하여 변경 사항을 반영합니다.
+
+### 2. 백엔드 업데이트 워크플로우
+
+1. 코드 수정 후, 5001 포트로 실행 중인 인스턴스만 재시작합니다.
+2. 5001 세션에서 기능 및 안정성을 검증합니다.
+3. 검증이 완료되면 필요한 경우에만 5002(운영용) 세션을 순차적으로 업데이트합니다.
+
+---
+
+## 🛠️ 주요 명령어
+
+### 서버 실행
 ```bash
-# 기본 5001 포트로 실행
+# 기본 실행 (Port 5001)
 ./run.sh
+
+# 특정 포트로 실행 (운영용 권장)
+./run.sh --port 5002
 ```
 
-### 5. 브라우저 접속
-
-5001 포트가 외부에 열려 있거나 로컬에 브라우저가 있으면 그것을 사용하면 되지만, 원격에서 브라우저가 없는 호스트가 접속하는 경우에는 ssh 포트포워딩이 필요합니다.
-
+### Tmux 환경 초기화
 ```bash
-ssh -L 35001:127.0.0.1:5001 <hostname>
+# Tmux 세션 및 윈도우 스타일 초기화
+./refresh-tmux.sh
 ```
-
-그리고 나서 ssh를 접속한 클라리언트에서 http://localhost:35001로 접속합니다. (포트번호는 각자 클라이언트 환경에 맞게 변경)
-
-
-### 🐳 Docker Support (Alternative)
-Windows와 같이 Tmux 환경을 직접 구축하기 어려운 경우 Docker를 사용하여 실행할 수 있습니다. 자세한 내용은 **[Docker Guide](docs/docker-guide.md)**를 참고하세요.
-
-이제 브라우저에서 `http://localhost:5001`에 접속하여 Gemini CLI를 웹에서 바로 사용해 보세요!
 
 ---
 
 ## 📂 프로젝트 구조
 
-- `src/`: 세션 관리 및 API 서버 로직 (Node.js)
-- `public/`: 웹 UI 자산 (JS Core, Svelte 컴포넌트, CSS)
-- `docs/`: 상세 사용자 가이드 및 도움말
-- `.agent/`: AI 에이전트 협업을 위한 핵심 강령 및 프로젝트 규칙
-
-## 🤝 기여하기 (Contributing)
-
-이 프로젝트는 실험적인 기능을 다수 포함하고 있습니다. 버그 제보나 기능 제안은 Issue 또는 Pull Request를 통해 언제든 환영합니다.
-
-## 📄 라이선스 (License)
-
-MIT License
+- `src/`: 백엔드 소스 코드 (master.js, server.js 및 핸들러)
+- `public/`: 프론트엔드 자산 (JS Core, CSS, HTML)
+- `prod/`: 운영 환경 배포용 디렉토리
+- `chat_history/`: 에이전트 작업 기록 및 설계 문서

@@ -1,151 +1,240 @@
 export class FloatingViewerManager {
     constructor(options) {
         this.basePath = options.basePath || '/';
+        this.template = document.getElementById('floating-viewer-template');
         
-        // DOM Elements
-        this.modal = document.getElementById('floating-viewer-modal');
-        this.header = document.getElementById('floating-viewer-header');
-        this.iframe = document.getElementById('floating-viewer-iframe');
-        this.title = document.getElementById('floating-viewer-title');
-        this.btnClose = document.getElementById('btn-floating-close');
-        this.btnMinimize = document.getElementById('btn-floating-minimize');
-        this.resizer = document.getElementById('floating-viewer-resizer');
+        this.windows = new Map(); // filePath -> windowObject
+        this.maxWindows = 3;
+        this.topZIndex = 5000;
 
-        this.isMinimized = false;
-        this.preMinimizeHeight = null;
-
-        this.init();
+        // BroadcastChannel 초기화 (나중에 탭 목록 동기화에 사용)
+        this.channel = new BroadcastChannel('gcw_viewer_channel');
     }
 
     init() {
-        this._bindEvents();
-        this._makeDraggable();
-        this._makeResizable();
+        // 싱글톤 시절의 init은 더 이상 필요 없음 (동적 생성 시 각각 초기화)
     }
 
-    _bindEvents() {
-        if (this.btnClose) {
-            this.btnClose.onclick = () => this.hide();
-        }
-
-        if (this.btnMinimize) {
-            this.btnMinimize.onclick = () => this.toggleMinimize();
-        }
-    }
-
+    /**
+     * 특정 파일을 팝업으로 엶
+     */
     open(filePath) {
-        if (!this.modal || !this.iframe) return;
+        if (!this.template) return;
 
-        const viewerUrl = `${this.basePath}viewer.html?path=${encodeURIComponent(filePath)}&mode=popup`;
-        this.iframe.src = viewerUrl;
-        this.title.textContent = `Viewer: ${filePath.split('/').pop()}`;
-        this.modal.classList.remove('hidden');
+        // 1. 이미 열려있는지 확인
+        if (this.windows.has(filePath)) {
+            this.bringToFront(filePath);
+            return;
+        }
+
+        // 2. 최대 개수 제한 확인
+        if (this.windows.size >= this.maxWindows) {
+            alert(`최대 ${this.maxWindows}개까지만 팝업을 열 수 있습니다.\n기존 팝업을 닫고 다시 시도해 주세요.`);
+            return;
+        }
+
+        // 3. 새 창 생성
+        const clone = this.template.content.cloneNode(true);
+        const modal = clone.querySelector('.floating-modal');
+        const iframe = modal.querySelector('iframe');
+        const title = modal.querySelector('.viewer-title');
+        const btnClose = modal.querySelector('.btn-close');
+        const btnMinimize = modal.querySelector('.btn-minimize');
+
+        const winId = `viewer-${Date.now()}`;
+        modal.id = winId;
+        title.textContent = `Viewer: ${filePath.split('/').pop()}`;
         
-        // 창이 처음 열릴 때 화면 중앙 부근에 배치 (이미 위치가 지정되어 있지 않다면)
-        if (!this.modal.style.top || this.modal.style.top === '') {
-            this.modal.style.top = '100px';
-            this.modal.style.left = '400px';
-        }
+        // 초기 위치 설정 (계단식 배열)
+        const offset = this.windows.size * 30;
+        modal.style.top = (100 + offset) + 'px';
+        modal.style.left = (400 + offset) + 'px';
+        modal.style.zIndex = ++this.topZIndex;
 
-        if (this.isMinimized) {
-            this.toggleMinimize();
+        // Iframe URL 설정
+        const viewerUrl = `${this.basePath}viewer.html?path=${encodeURIComponent(filePath)}&mode=popup`;
+        iframe.src = viewerUrl;
+
+        // 윈도우 객체 저장
+        const winObj = {
+            modal,
+            iframe,
+            isMinimized: false,
+            preMinimizeHeight: null
+        };
+        this.windows.set(filePath, winObj);
+
+        // DOM 추가
+        document.body.appendChild(modal);
+
+        // 이벤트 바인딩
+        this._bindEvents(filePath, winObj);
+        this._makeDraggable(filePath, winObj);
+        this._makeResizable(filePath, winObj);
+
+        // 자동 포커스 및 내부 클릭 감지 (Z-Order 전환)
+        iframe.onload = () => {
+            try {
+                // 1. 자동 포커스
+                iframe.contentWindow.focus();
+                
+                // 2. Iframe 내부 클릭 시 부모 창에서 bringToFront 호출할 수 있도록 이벤트 바인딩
+                iframe.contentWindow.document.addEventListener('mousedown', () => {
+                    this.bringToFront(filePath);
+                });
+                
+                console.log(`[VIEWER] Iframe linked for Z-Order management: ${filePath}`);
+            } catch (e) {
+                console.warn('[VIEWER] Failed to link iframe for focus (possibly cross-origin or load error):', e);
+            }
+        };
+        
+        console.log(`[VIEWER] Opened new popup for: ${filePath}`);
+    }
+
+    close(filePath) {
+        const win = this.windows.get(filePath);
+        if (win) {
+            win.modal.remove();
+            this.windows.delete(filePath);
+            console.log(`[VIEWER] Closed popup: ${filePath}`);
         }
     }
 
-    hide() {
-        if (this.modal) {
-            this.modal.classList.add('hidden');
-            this.iframe.src = 'about:blank';
+    bringToFront(filePath) {
+        const win = this.windows.get(filePath);
+        if (win) {
+            win.modal.style.zIndex = ++this.topZIndex;
+            if (win.isMinimized) this.toggleMinimize(filePath);
+            try { win.iframe.contentWindow.focus(); } catch (e) {}
         }
     }
 
-    toggleMinimize() {
-        if (this.isMinimized) {
-            this.modal.style.height = this.preMinimizeHeight || '700px';
-            this.modal.classList.remove('minimized');
-            this.isMinimized = false;
+    toggleMinimize(filePath) {
+        const win = this.windows.get(filePath);
+        if (!win) return;
+
+        if (win.isMinimized) {
+            win.modal.style.height = win.preMinimizeHeight || '700px';
+            win.modal.classList.remove('minimized');
+            win.isMinimized = false;
+            win.iframe.contentWindow.focus();
         } else {
-            this.preMinimizeHeight = this.modal.style.height || getComputedStyle(this.modal).height;
-            this.modal.style.height = '40px'; // 헤더 높이만큼
-            this.modal.classList.add('minimized');
-            this.isMinimized = true;
+            win.preMinimizeHeight = win.modal.style.height || getComputedStyle(win.modal).height;
+            win.modal.style.height = '40px';
+            win.modal.classList.add('minimized');
+            win.isMinimized = true;
         }
     }
 
-    _makeDraggable() {
+    _bindEvents(filePath, win) {
+        const btnClose = win.modal.querySelector('.btn-close');
+        const btnMinimize = win.modal.querySelector('.btn-minimize');
+
+        btnClose.onclick = () => this.close(filePath);
+        btnMinimize.onclick = () => this.toggleMinimize(filePath);
+
+        // 창 영역 클릭 시 최상단으로
+        win.modal.onmousedown = () => this.bringToFront(filePath);
+    }
+
+    _makeDraggable(filePath, win) {
+        const header = win.modal.querySelector('.modal-header');
         let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
         
         const dragMouseDown = (e) => {
             e.preventDefault();
-            // get the mouse cursor position at startup:
+            this.bringToFront(filePath);
             pos3 = e.clientX;
             pos4 = e.clientY;
             document.onmouseup = closeDragElement;
-            // call a function whenever the cursor moves:
             document.onmousemove = elementDrag;
-            
-            // 드래그 시작 시 iframe에 pointer-events: none 처리 (드래그 끊김 방지)
-            this.iframe.style.pointerEvents = 'none';
+            win.iframe.style.pointerEvents = 'none';
         };
 
         const elementDrag = (e) => {
             e.preventDefault();
-            // calculate the new cursor position:
             pos1 = pos3 - e.clientX;
             pos2 = pos4 - e.clientY;
             pos3 = e.clientX;
             pos4 = e.clientY;
-            // set the element's new position:
-            this.modal.style.top = (this.modal.offsetTop - pos2) + "px";
-            this.modal.style.left = (this.modal.offsetLeft - pos1) + "px";
+            win.modal.style.top = (win.modal.offsetTop - pos2) + "px";
+            win.modal.style.left = (win.modal.offsetLeft - pos1) + "px";
         };
 
         const closeDragElement = () => {
-            // stop moving when mouse button is released:
             document.onmouseup = null;
             document.onmousemove = null;
-            this.iframe.style.pointerEvents = 'auto';
+            win.iframe.style.pointerEvents = 'auto';
         };
 
-        if (this.header) {
-            this.header.onmousedown = dragMouseDown;
-        }
+        header.onmousedown = dragMouseDown;
     }
 
-    _makeResizable() {
-        const resizer = this.resizer;
-        if (!resizer) return;
-
-        let startX, startY, startWidth, startHeight;
+    _makeResizable(filePath, win) {
+        const resizers = win.modal.querySelectorAll('.resizer');
+        let startX, startY, startWidth, startHeight, startTop, startLeft;
+        let currentResizer = null;
 
         const initResize = (e) => {
             e.preventDefault();
+            this.bringToFront(filePath);
+            currentResizer = e.target;
             startX = e.clientX;
             startY = e.clientY;
-            startWidth = parseInt(document.defaultView.getComputedStyle(this.modal).width, 10);
-            startHeight = parseInt(document.defaultView.getComputedStyle(this.modal).height, 10);
+            
+            const rect = win.modal.getBoundingClientRect();
+            startWidth = rect.width;
+            startHeight = rect.height;
+            startTop = rect.top;
+            startLeft = rect.left;
+
             window.addEventListener('mousemove', resize, false);
             window.addEventListener('mouseup', stopResize, false);
-            this.iframe.style.pointerEvents = 'none';
+            win.iframe.style.pointerEvents = 'none';
         };
 
         const resize = (e) => {
-            const width = startWidth + (e.clientX - startX);
-            const height = startHeight + (e.clientY - startY);
-            if (width > 300) {
-                this.modal.style.width = width + 'px';
+            if (!currentResizer) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            
+            let newWidth = startWidth;
+            let newHeight = startHeight;
+            let newTop = startTop;
+            let newLeft = startLeft;
+
+            if (currentResizer.classList.contains('r') || currentResizer.classList.contains('tr') || currentResizer.classList.contains('br')) {
+                newWidth = startWidth + dx;
+            } else if (currentResizer.classList.contains('l') || currentResizer.classList.contains('tl') || currentResizer.classList.contains('bl')) {
+                newWidth = startWidth - dx;
+                newLeft = startLeft + dx;
             }
-            if (height > 200 && !this.isMinimized) {
-                this.modal.style.height = height + 'px';
+
+            if (currentResizer.classList.contains('b') || currentResizer.classList.contains('bl') || currentResizer.classList.contains('br')) {
+                newHeight = startHeight + dy;
+            } else if (currentResizer.classList.contains('t') || currentResizer.classList.contains('tl') || currentResizer.classList.contains('tr')) {
+                newHeight = startHeight - dy;
+                newTop = startTop + dy;
+            }
+
+            if (newWidth > 300) {
+                win.modal.style.width = newWidth + 'px';
+                win.modal.style.left = newLeft + 'px';
+            }
+            if (newHeight > 200 && !win.isMinimized) {
+                win.modal.style.height = newHeight + 'px';
+                win.modal.style.top = newTop + 'px';
             }
         };
 
         const stopResize = () => {
             window.removeEventListener('mousemove', resize, false);
             window.removeEventListener('mouseup', stopResize, false);
-            this.iframe.style.pointerEvents = 'auto';
+            win.iframe.style.pointerEvents = 'auto';
+            currentResizer = null;
         };
 
-        resizer.addEventListener('mousedown', initResize, false);
+        resizers.forEach(r => r.addEventListener('mousedown', initResize, false));
     }
 }

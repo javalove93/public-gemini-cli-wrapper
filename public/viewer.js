@@ -116,6 +116,61 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const openBtn = document.getElementById('open-btn');
     const editBtn = document.getElementById('edit-btn');
+    const refreshBtn = document.getElementById('refresh-btn');
+
+    // --- BroadcastChannel for Global Tracking ---
+    const viewerId = 'ext-' + Date.now();
+    const channel = new BroadcastChannel('gcw_viewer_channel');
+    let blinkInterval = null;
+
+    const sendStatus = (type) => {
+        if (!filePath || viewMode === 'popup') return; 
+        channel.postMessage({
+            type,
+            payload: { id: viewerId, path: filePath }
+        });
+    };
+
+    const startTitleBlink = () => {
+        if (blinkInterval) return;
+        const originalTitle = document.title;
+        let isRed = true;
+        
+        blinkInterval = setInterval(() => {
+            document.title = isRed ? `🔴 [ACTIVATE] ${originalTitle}` : originalTitle;
+            isRed = !isRed;
+        }, 500);
+
+        const stopBlink = () => {
+            if (blinkInterval) {
+                clearInterval(blinkInterval);
+                blinkInterval = null;
+                document.title = originalTitle;
+            }
+            window.removeEventListener('focus', stopBlink);
+        };
+        window.addEventListener('focus', stopBlink);
+        setTimeout(stopBlink, 10000); // 10초 후 자동 중지
+    };
+
+    channel.onmessage = (event) => {
+        const { type, payload } = event.data;
+        if (type === 'PING_VIEWERS') {
+            sendStatus('VIEWER_PONG');
+        } else if (type === 'ACTIVATE_VIEWER' && payload.id === viewerId) {
+            console.log('[VIEWER] Received activation request.');
+            window.focus(); // 시도는 해봄
+            
+            // 시각적 피드백 강화
+            document.body.classList.add('highlight-active');
+            startTitleBlink();
+            setTimeout(() => document.body.classList.remove('highlight-active'), 2000);
+        }
+    };
+
+    // 창이 닫힐 때 보고
+    window.addEventListener('beforeunload', () => sendStatus('VIEWER_CLOSED'));
+    // ---------------------------------------------
     
     // Edit Modal Elements
     const editModal = document.getElementById('edit-modal');
@@ -643,5 +698,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (filePath) {
         loadContent();
+        // 초기 로드 시 보고
+        setTimeout(() => sendStatus('VIEWER_OPENED'), 500);
+    }
+
+    if (refreshBtn) {
+        refreshBtn.onclick = async () => {
+            const originalHtml = refreshBtn.innerHTML;
+            refreshBtn.innerHTML = '⌛ Refreshing...';
+            refreshBtn.disabled = true;
+            refreshBtn.style.opacity = '0.7';
+
+            console.log('[VIEWER] Manual refresh triggered.');
+            try {
+                await loadContent();
+            } finally {
+                setTimeout(() => {
+                    refreshBtn.innerHTML = originalHtml;
+                    refreshBtn.disabled = false;
+                    refreshBtn.style.opacity = '1';
+                }, 500);
+            }
+        };
     }
 });

@@ -401,6 +401,95 @@ body.light-theme .upload-item {
     border-top-color: #ce9178; /* 윈도우 탭은 다른 색상으로 강조 */
 }
 
+/* --- Viewer Dropdown (Compact List UI) --- */
+.viewer-dropdown {
+    position: relative;
+    display: inline-block;
+    margin-left: 10px;
+}
+
+.viewer-list-btn {
+    background-color: #3b4252; /* Indigo Blue */
+    color: #eceff4;
+    border: 1px solid #569cd6;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+    width: auto !important; /* Override global button width */
+}
+
+.viewer-list-btn:hover {
+    background-color: #4c566a;
+}
+
+.viewer-dropdown-content {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background-color: #2e3440;
+    min-width: 250px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+    z-index: 10000;
+    border: 1px solid #4c566a;
+    border-radius: 0 0 4px 4px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.viewer-dropdown:hover .viewer-dropdown-content {
+    display: block;
+}
+
+.viewer-list-item {
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #d8dee9;
+    cursor: pointer;
+    border-bottom: 1px solid #3b4252;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.viewer-list-item:hover {
+    background-color: #3b4252;
+    color: #ffffff;
+}
+
+.viewer-list-item .path {
+    font-size: 10px;
+    color: #666;
+    margin-left: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.viewer-list-item.popup { border-left: 3px solid #ebcb8b; }
+.viewer-list-item.external { border-left: 3px solid #88c0d0; }
+
+#viewer-count {
+    background: #5e81ac;
+    padding: 1px 5px;
+    border-radius: 10px;
+    margin-left: 4px;
+}
+
+/* Viewer Focus Highlight Animation */
+@keyframes viewer-active-pulse {
+    0% { outline: 3px solid transparent; }
+    50% { outline: 3px solid #5e81ac; }
+    100% { outline: 3px solid transparent; }
+}
+.highlight-active {
+    animation: viewer-active-pulse 1s ease-out;
+}
+
 .tab-action-btn {
     background: transparent;
     color: #888;
@@ -1122,16 +1211,21 @@ body.light-theme .shortcut-btn {
     border: none;
 }
 
-.floating-modal .modal-resizer {
+/* 8-way Resizer Handles */
+.floating-modal .resizer {
     position: absolute;
-    right: 0;
-    bottom: 0;
-    width: 15px;
-    height: 15px;
-    cursor: nwse-resize;
-    background: linear-gradient(135deg, transparent 50%, #555 50%);
-    z-index: 10;
+    z-index: 100;
 }
+
+.floating-modal .resizer.t { top: -3px; left: 0; right: 0; height: 6px; cursor: ns-resize; }
+.floating-modal .resizer.b { bottom: -3px; left: 0; right: 0; height: 6px; cursor: ns-resize; }
+.floating-modal .resizer.l { left: -3px; top: 0; bottom: 0; width: 6px; cursor: ew-resize; }
+.floating-modal .resizer.r { right: -3px; top: 0; bottom: 0; width: 6px; cursor: ew-resize; }
+
+.floating-modal .resizer.tl { top: -5px; left: -5px; width: 10px; height: 10px; cursor: nwse-resize; z-index: 101; }
+.floating-modal .resizer.tr { top: -5px; right: -5px; width: 10px; height: 10px; cursor: nesw-resize; z-index: 101; }
+.floating-modal .resizer.bl { bottom: -5px; left: -5px; width: 10px; height: 10px; cursor: nesw-resize; z-index: 101; }
+.floating-modal .resizer.br { bottom: -5px; right: -5px; width: 10px; height: 10px; cursor: nwse-resize; z-index: 101; }
 
 .floating-modal .modal-controls {
     display: flex;
