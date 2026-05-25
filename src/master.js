@@ -180,10 +180,10 @@ function startProject(name, projectConfig) {
         target: targetUrl,
         changeOrigin: true,
         ws: true, // WebSocket 지원
-        pathFilter: `/${name}`, // HTTP와 WebSocket(upgrade) 모두에서 이 경로 필터링
+        pathFilter: (path) => path.startsWith(`/${name}/`) || path === `/${name}`, // 정확한 경로 매칭 보장
         pathRewrite: (path) => {
-            // /GCW/api/files -> /api/files 로 경로 재작성
-            return path.replace(new RegExp(`^/${name}`), '');
+            // /PERSONAL2/api -> /api 로 정확히 재작성 (PERSONAL이 PERSONAL2를 가로채지 않도록)
+            return path.replace(new RegExp(`^/${name}(?=/|$)`), '');
         },
         onError: (err, req, res) => {
             console.error(`[Proxy Error] for ${name}:`, err.message);
